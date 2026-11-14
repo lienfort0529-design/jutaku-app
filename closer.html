@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>クローザー入力</title>
+<script src="api.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 16px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
+  select, input { width: 100%; font-size: 17px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+  .summary { display: flex; justify-content: space-between; margin: 14px 0; font-size: 15px; }
+  .summary b { font-size: 26px; display: block; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button.r { min-height: 76px; font-size: 17px; font-weight: 600; border: 0; border-radius: 14px; color: #fff; position: relative; }
+  button.r:active { transform: scale(.96); }
+  button.r span { position: absolute; top: 6px; right: 10px; font-size: 14px; opacity: .9; }
+  .undo { margin-top: 14px; width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #999; background: #fff; }
+  #msg { text-align: center; min-height: 20px; margin-top: 8px; font-size: 14px; color: #666; }
+  #pending { display: none; white-space: pre-line; margin-top: 10px; padding: 10px; border-radius: 10px; background: #fff3cd; color: #7a5b00; font-size: 14px; text-align: center; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 20;
+             align-items: center; justify-content: center; flex-direction: column; font-size: 16px; font-weight: 600; }
+  body.busy #overlay { display: flex; }
+  .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2980b9; border-radius: 50%;
+             animation: spin .8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #sale { display: none; position: fixed; inset: 0; background: #f4f5f7; z-index: 10; overflow-y: auto; padding: 16px; }
+  #sale.open { display: block; }
+  #sale h2 { margin: 0 0 12px; font-size: 20px; }
+  #sale label { display: block; font-size: 14px; color: #555; margin: 12px 0 4px; }
+  #other { margin-top: 6px; display: none; }
+  .actions { display: flex; gap: 10px; margin: 20px 0 40px; }
+  .actions button { flex: 1; padding: 14px; font-size: 17px; font-weight: 600; border-radius: 12px; border: 0; }
+  .ok { background: #27ae60; color: #fff; }
+  .cancel { background: #ddd; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #sale .checks label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 10px; font-size: 17px; color: #222; }
+  .checks input { width: 22px; height: 22px; }
+  #saijiBox { display: none; }
+  .listbtn { margin-top: 10px; width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #2980b9; background: #fff; color: #2980b9; font-weight: 600; }
+  #list { display: none; position: fixed; inset: 0; background: #f4f5f7; z-index: 10; overflow-y: auto; padding: 16px; }
+  #list.open { display: block; }
+  #list h2 { margin: 0 0 12px; font-size: 20px; }
+  .card { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; }
+  .card b { font-size: 17px; }
+  .card small { display: block; color: #666; margin-top: 4px; }
+  .st { float: right; font-size: 13px; padding: 2px 8px; border-radius: 10px; background: #e8eef7; }
+  #edit { display: none; }
+  #edit label { display: block; font-size: 14px; color: #555; margin: 12px 0 4px; }
+  #pick { display: none; position: fixed; inset: 0; background: #f4f5f7; z-index: 15; overflow-y: auto; padding: 16px; }
+  #pick.open { display: block; }
+  #pick h2 { margin: 0 0 12px; font-size: 20px; }
+  #pickList button { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 14px; font-size: 17px; border-radius: 12px; border: 1px solid #2980b9; background: #fff; }
+  #pickList button small { display: block; color: #666; font-size: 13px; margin-top: 2px; }
+  #pickList button.none { border-style: dashed; border-color: #999; text-align: center; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* 住宅設備アプリ共通のデザイン。色は Lien Fort（lienfort.co.jp）に合わせる。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --sub: #4b5567; --line: #e3e8f0; --bg: #f6f8fb; --pale: #eef2f9;
+          --en: Oswald, "Arial Narrow", sans-serif; }
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 10px 14px;
+            background: var(--ink); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px; letter-spacing: .3em; color: #9fb4dd; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; }
+
+  select, input, textarea { border: 1px solid var(--line) !important; color: var(--ink); }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.3); border-color: var(--blue) !important; }
+  h2 { letter-spacing: .03em; }
+
+  /* 今日の数字 */
+  .summary { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b { font-family: var(--en); font-weight: 500; font-size: 30px !important; color: var(--ink); }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button.r { border-radius: 12px !important; box-shadow: 0 2px 0 rgba(0,0,0,.12); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map { color: var(--blue) !important; }
+  .ok { background: var(--blue) !important; color: #fff !important; }
+  .add { border-color: var(--blue) !important; color: var(--blue) !important; background: #fff !important; }
+  .tabs button { border: 1px solid var(--line) !important; background: #fff !important; color: var(--sub) !important; }
+  .tabs button.on { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
+  .choice button.on { background: var(--ink) !important; border-color: var(--ink) !important; }
+
+  /* カード・表 */
+  .card, td.d { border: 1px solid var(--line) !important; box-shadow: 0 1px 2px rgba(24,32,46,.05); }
+  .card summary, .req { color: var(--blue) !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--blue) !important; }
+  .legend span:first-child i { background: var(--blue) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  .spinner { border-top-color: var(--blue) !important; }
+</style>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>クローザー入力</b></div></header>
+  <select id="closer"><option value="">名前を選択</option></select>
+  <div class="summary">
+    <div>今日の商談<b id="all">0</b></div>
+    <div>有効商談<b id="valid">0</b></div>
+    <div>成約<b id="won">0</b></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button class="undo" id="undo">↩ 直前を取り消す</button>
+  <button class="listbtn" id="openList">催事のお客様一覧</button>
+  <button class="listbtn" id="openYotei">商談予定</button>
+  <div id="msg"></div>
+  <div id="pending"></div>
+
+  <div id="list">
+    <div id="cards">
+      <h2>催事のお客様一覧</h2>
+      <div id="cardList"></div>
+      <div class="actions"><button class="cancel" id="closeList">閉じる</button></div>
+    </div>
+    <div id="edit">
+      <h2 id="editName"></h2>
+      <label>進捗ステータス</label><select id="status"></select>
+      <label>現地調査日</label><input type="date" id="survey">
+      <label>次回対応日</label><input type="date" id="nextDay">
+      <div class="actions">
+        <button class="cancel" id="cancelEdit">やめる</button>
+        <button class="ok" id="saveEdit">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sale">
+    <h2>成約の入力</h2>
+    <label>契約日</label><input type="date" id="date">
+    <label>お客様名</label><input id="customer" placeholder="例：山田太郎様">
+    <label>契約場所</label><select id="place"></select>
+    <div id="saijiBox"><label>催事のお客様（選ぶと名前とアポインターが入ります）</label><select id="saijiCust"></select></div>
+    <label>チーム</label><select id="team"></select>
+    <label>アポインター</label><select id="appointer"></select>
+    <input id="other" placeholder="アポインターの名前">
+    <label>販売価格（円）</label><input id="price" type="number" inputmode="numeric" placeholder="例：2750000">
+    <label>決済方法</label><select id="payment"></select>
+    <label>販売商品（複数選べます）</label><div class="checks" id="product"></div>
+    <label>備考</label><input id="note">
+    <div class="actions">
+      <button class="cancel" id="cancelSale">やめる</button>
+      <button class="ok" id="sendSale">成約を記録</button>
+    </div>
+  </div>
+
+  <div id="pick">
+    <h2 id="pickTitle"></h2>
+    <div id="pickList"></div>
+    <div class="actions"><button class="cancel" id="cancelPick">やめる</button></div>
+  </div>
+
+  <div id="overlay"><div class="spinner"></div><span id="overlayText">記録中…</span></div>
+
+<script>
+  const COLORS = { '成約':'#27ae60', '失注':'#c0392b', '対象外':'#555', '片面':'#e67e22', '不在':'#8a8f98', 'フロントアウト':'#d9534f' };
+  const VALID = ['成約', '失注'];
+  const OTHER = 'その他（手入力）';
+  const $ = id => document.getElementById(id);
+  let results = [], busy = false, sending = false, sent = {}, lastError = '', saiji = [], appointers = [], editing = null;
+  let yotei = [], saleYotei = '', appUrl = ''; // 今日の自分の商談予定（どの予定の結果かを選ぶ）
+  const DONE = ['成約', '工事完了', '連系完了', '失注']; // 成約の入力で選べないお客様
+
+  // 記録はまずスマホに保存し（未送信）、電波があれば送る。電波がない間はたまっていき、戻ったら送る
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('queue')) || []; } catch (e) {}
+  function saveQueue() { try { localStorage.setItem('queue', JSON.stringify(queue)); } catch (e) {} }
+  const day = t => new Date(t).toDateString();
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+
+  function fill(id, list) { list.forEach(v => $(id).add(new Option(v, v))); }
+
+  function render() {
+    const name = $('closer').value, counts = Object.assign({}, sent);
+    queue.filter(q => q.closer === name && day(q.ts) === day(Date.now())).forEach(q => counts[q.result] = (counts[q.result] || 0) + 1);
+    results.forEach(r => $('c-' + r).textContent = counts[r] || 0);
+    $('all').textContent = results.reduce((s, r) => s + (counts[r] || 0), 0);
+    $('valid').textContent = VALID.reduce((s, r) => s + (counts[r] || 0), 0);
+    $('won').textContent = counts['成約'] || 0;
+    $('pending').style.display = queue.length ? 'block' : 'none';
+    $('pending').textContent = '未送信 ' + queue.length + '件（電波が戻ったら自動で送ります）' + (lastError ? '\n' + lastError : '');
+  }
+
+  // 少しの間、画面全体を覆ってほかのボタンを触れないようにする（押し間違い防止）
+  function setBusy(on, text) {
+    busy = on;
+    if (text) $('overlayText').textContent = text;
+    document.body.classList.toggle('busy', on);
+    document.querySelectorAll('button, select, input').forEach(el => el.disabled = on);
+  }
+
+  function record(result, sale, yoteiId) {
+    const name = $('closer').value;
+    if (!name) { $('msg').textContent = '名前を選んでください'; return false; }
+    if (busy) return false;
+    queue.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), closer: name, result: result, ts: Date.now(), sale: sale || null, yotei: yoteiId || '' });
+    saveQueue();
+    $('msg').textContent = '記録しました：' + result + (navigator.onLine ? '' : '（電波が戻ったら送ります）');
+    render();
+    setBusy(true, '記録中…');
+    setTimeout(() => setBusy(false), 500);
+    flush();
+    return true;
+  }
+
+  // 未送信をまとめて送る。送れた分だけ消す（同じ記録は二重に入らない）
+  function flush() {
+    if (sending || !queue.length) return;
+    sending = true;
+    const batch = queue.slice(0, 30);
+    google.script.run
+      .withSuccessHandler(r => {
+        sending = false;
+        queue = queue.filter(q => !r.done.includes(q.id));
+        lastError = r.errors.join('\n');
+        saveQueue();
+        loadToday();
+        if (queue.length && r.done.length) flush();
+      })
+      .withFailureHandler(() => { sending = false; render(); })
+      .addEntries(batch);
+  }
+
+  function undo() {
+    const name = $('closer').value;
+    if (!name) { $('msg').textContent = '名前を選んでください'; return; }
+    if (!confirm('直前の記録を取り消しますか？')) return;
+    const i = queue.map(q => q.closer).lastIndexOf(name);
+    if (i >= 0) {
+      queue.splice(i, 1); saveQueue(); render();
+      $('msg').textContent = '取り消しました（未送信の分）';
+      return;
+    }
+    if (!navigator.onLine) { $('msg').textContent = '電波がない時は、送信済みの記録は取り消せません'; return; }
+    setBusy(true, '取り消し中…');
+    google.script.run
+      .withSuccessHandler(c => { setBusy(false); sent = c; render(); $('msg').textContent = '取り消しました'; })
+      .withFailureHandler(e => { setBusy(false); $('msg').textContent = 'エラー: ' + e.message; })
+      .undoLast(name);
+  }
+
+  function products() { return [...document.querySelectorAll('#product input:checked')].map(c => c.value); }
+
+  // y：商談予定から選んだときは、お客様名・アポインター・商品を入れておく
+  function openSale(y) {
+    if (!$('closer').value) { $('msg').textContent = '名前を選んでください'; return; }
+    saleYotei = y ? y.id : '';
+    $('date').value = todayStr();
+    ['customer', 'price', 'note', 'other'].forEach(id => $(id).value = '');
+    $('appointer').selectedIndex = 0; $('other').style.display = 'none';
+    $('place').selectedIndex = 0; showSaiji();
+    document.querySelectorAll('#product input').forEach(c => c.checked = false);
+    if (y) {
+      $('customer').value = y.customer;
+      const known = appointers.includes(y.ap);
+      $('appointer').value = known ? y.ap : (y.ap ? OTHER : '');
+      $('other').style.display = known || !y.ap ? 'none' : 'block';
+      $('other').value = known ? '' : (y.ap || '');
+      const ps = String(y.product || '').split(',').map(x => x.trim());
+      document.querySelectorAll('#product input').forEach(c => c.checked = ps.includes(c.value));
+    }
+    $('sale').classList.add('open');
+  }
+
+  function sendSale() {
+    const appointer = $('appointer').value === OTHER ? $('other').value.trim() : $('appointer').value;
+    const sale = { date: $('date').value, customer: $('customer').value.trim(), place: $('place').value, team: $('team').value,
+                   saijiNo: $('place').value === '催事' ? $('saijiCust').value : '',
+                   appointer: appointer, price: $('price').value, payment: $('payment').value, product: products().join(', '), note: $('note').value.trim() };
+    if (!sale.date || !sale.customer || !sale.appointer || !(Number(sale.price) > 0) || !sale.product) { alert('契約日・お客様名・アポインター・販売価格・販売商品を入れてください'); return; }
+    if (Number(sale.price) >= 10000000 && !confirm('販売価格が ' + Number(sale.price).toLocaleString() + '円 とかなり大きいですが、合っていますか？')) return;
+    if (!confirm(sale.customer + '\n' + Number(sale.price).toLocaleString() + '円\nこの内容で記録しますか？')) return;
+    if (record('成約', sale, saleYotei)) {
+      $('sale').classList.remove('open');
+      const c = saiji.find(x => x.no === sale.saijiNo);
+      if (c) c.status = '成約';
+    }
+  }
+
+  // 契約場所が「催事」のときは、催事のお客様から選べる
+  function showSaiji() {
+    const on = $('place').value === '催事';
+    $('saijiBox').style.display = on ? 'block' : 'none';
+    if (!on) return;
+    $('saijiCust').innerHTML = '';
+    $('saijiCust').add(new Option('選ばない（一覧にいない）', ''));
+    saiji.filter(c => !DONE.includes(c.status)).forEach(c => $('saijiCust').add(new Option(c.customer + '（' + c.venue + '・' + (c.status || '') + '）', c.no)));
+  }
+  function pickSaiji() {
+    const c = saiji.find(x => x.no === $('saijiCust').value);
+    if (!c) return;
+    $('customer').value = c.customer;
+    const known = appointers.includes(c.ap);
+    $('appointer').value = known ? c.ap : (c.ap ? OTHER : '');
+    $('other').style.display = known || !c.ap ? 'none' : 'block';
+    $('other').value = known ? '' : (c.ap || '');
+  }
+
+  function loadSaiji(after) {
+    google.script.run.withSuccessHandler(l => { saiji = l; if (after) after(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).saijiList();
+  }
+
+  // 催事のお客様一覧（電波があるときだけ）
+  function openList() {
+    if (!$('closer').value) { $('msg').textContent = '名前を選んでください'; return; }
+    if (!navigator.onLine) { $('msg').textContent = '一覧は電波があるときに開いてください'; return; }
+    setBusy(true, '読み込み中…');
+    loadSaiji(() => { setBusy(false); renderList(); $('edit').style.display = 'none'; $('cards').style.display = 'block'; $('list').classList.add('open'); });
+  }
+  function renderList() {
+    const box = $('cardList');
+    box.innerHTML = saiji.length ? '' : '<p>まだお客様がいません</p>';
+    saiji.slice().reverse().forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'card';
+      d.innerHTML = '<span class="st"></span><b></b><small></small>';
+      d.querySelector('.st').textContent = c.status || '';
+      d.querySelector('b').textContent = c.customer;
+      d.querySelector('small').textContent = c.venue + ' / AP ' + (c.ap || '-') + ' / CL ' + (c.cl || '-') + (c.next ? ' / 次回 ' + c.next : '');
+      d.onclick = () => openEdit(c);
+      box.appendChild(d);
+    });
+  }
+  function openEdit(c) {
+    editing = c;
+    $('editName').textContent = c.customer;
+    $('status').value = c.status; $('survey').value = c.survey; $('nextDay').value = c.next;
+    $('cards').style.display = 'none'; $('edit').style.display = 'block';
+  }
+  function saveEdit() {
+    const v = { status: $('status').value, survey: $('survey').value, next: $('nextDay').value };
+    if (!v.status) { alert('ステータスを選んでください'); return; }
+    setBusy(true, '保存中…');
+    google.script.run
+      .withSuccessHandler(l => { setBusy(false); saiji = l; renderList(); $('edit').style.display = 'none'; $('cards').style.display = 'block'; })
+      .withFailureHandler(e => { setBusy(false); alert('保存できませんでした：' + e.message); })
+      .updateSaiji($('closer').value, editing.no, v);
+  }
+
+  // 今日の自分の商談予定があれば、どの予定の結果かを選んでもらう（予定アプリで入れた結果と二重にならない）
+  // 予定がなければすぐ記録する
+  function pick(result, then) {
+    if (!$('closer').value) { $('msg').textContent = '名前を選んでください'; return; }
+    if (busy) return;
+    const list = yotei.filter(y => y.result !== '成約' && !queue.some(q => q.yotei === y.id));
+    if (!list.length) return then(null);
+    $('pickTitle').textContent = '「' + result + '」はどの予定ですか？';
+    const box = $('pickList');
+    box.innerHTML = '';
+    list.forEach(y => {
+      const b = document.createElement('button');
+      b.innerHTML = '<b></b><small></small>';
+      b.querySelector('b').textContent = y.time + '　' + y.customer;
+      b.querySelector('small').textContent = (y.product || '') + (y.ap ? ' ／ AP ' + y.ap : '') + (y.result ? ' ／ いまの結果：' + y.result + '（直します）' : '');
+      b.onclick = () => { $('pick').classList.remove('open'); then(y); };
+      box.appendChild(b);
+    });
+    const none = document.createElement('button');
+    none.className = 'none'; none.textContent = '予定にない商談';
+    none.onclick = () => { $('pick').classList.remove('open'); then(null); };
+    box.appendChild(none);
+    $('pick').classList.add('open');
+  }
+
+  function loadToday() {
+    if (!$('closer').value) return render();
+    google.script.run.withSuccessHandler(l => yotei = l).yForCloser($('closer').value);
+    google.script.run.withSuccessHandler(c => { sent = c; render(); }).withFailureHandler(render).getToday($('closer').value);
+  }
+
+  google.script.run.withSuccessHandler(cfg => {
+    results = cfg.results;
+    fill('closer', cfg.closers);
+    fill('place', cfg.options.places); fill('team', cfg.options.teams);
+    fill('payment', cfg.options.payments);
+    cfg.options.products.forEach(v => $('product').insertAdjacentHTML('beforeend', '<label><input type="checkbox" value="' + v + '">' + v + '</label>'));
+    fill('appointer', cfg.appointers.concat([OTHER]));
+    appointers = cfg.appointers; saiji = cfg.saiji || []; appUrl = cfg.url;
+    $('status').add(new Option('選択', '')); fill('status', cfg.statuses || []);
+    results.forEach(r => {
+      const b = document.createElement('button');
+      b.className = 'r'; b.style.background = COLORS[r] || '#333';
+      b.innerHTML = r + '<span id="c-' + r + '">0</span>';
+      b.onclick = () => pick(r, y => r === '成約' ? openSale(y) : record(r, null, y && y.id));
+      $('grid').appendChild(b);
+    });
+    try { const saved = localStorage.getItem('closer'); if (saved) $('closer').value = saved; } catch (e) {}
+    loadToday();
+    flush();
+  }).withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).getConfig();
+
+  $('closer').onchange = () => {
+    try { localStorage.setItem('closer', $('closer').value); } catch (e) {}
+    sent = {}; yotei = [];
+    loadToday();
+  };
+  $('appointer').onchange = () => { $('other').style.display = $('appointer').value === OTHER ? 'block' : 'none'; };
+  $('place').onchange = () => { showSaiji(); if (navigator.onLine && $('place').value === '催事') loadSaiji(showSaiji); };
+  $('saijiCust').onchange = pickSaiji;
+  $('openList').onclick = openList;
+  $('closeList').onclick = () => $('list').classList.remove('open');
+  $('cancelEdit').onclick = () => { $('edit').style.display = 'none'; $('cards').style.display = 'block'; };
+  $('saveEdit').onclick = saveEdit;
+  $('cancelSale').onclick = () => $('sale').classList.remove('open');
+  $('sendSale').onclick = sendSale;
+  $('undo').onclick = undo;
+  $('cancelPick').onclick = () => $('pick').classList.remove('open');
+  $('openYotei').onclick = () => { location.href = 'yotei.html'; };
+  window.addEventListener('online', flush);
+  setInterval(flush, 20000);
+  // 開きっぱなしでも、日付が変わったら今日の数字に切り替える（0時に0へ）
+  let shownDay = day(Date.now());
+  setInterval(() => {
+    if (day(Date.now()) === shownDay) return;
+    shownDay = day(Date.now()); sent = {}; render(); loadToday();
+  }, 30000);
+</script>
+</body>
+</html>

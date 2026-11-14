@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>叩きカウンター</title>
+<script src="api.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 16px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
+  select { width: 100%; font-size: 18px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
+  .summary { display: flex; justify-content: space-between; margin: 14px 0; font-size: 15px; }
+  .summary b { font-size: 26px; display: block; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button.r { min-height: 76px; font-size: 17px; font-weight: 600; border: 0; border-radius: 14px; color: #fff; position: relative; }
+  button.r:active { transform: scale(.96); }
+  button.r span { position: absolute; top: 6px; right: 10px; font-size: 14px; opacity: .9; }
+  .undo { margin-top: 14px; width: 100%; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #999; background: #fff; }
+  #msg { text-align: center; min-height: 20px; margin-top: 8px; font-size: 14px; color: #666; }
+  #pending { display: none; margin-top: 10px; padding: 10px; border-radius: 10px; background: #fff3cd; color: #7a5b00; font-size: 14px; text-align: center; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 10;
+             align-items: center; justify-content: center; flex-direction: column; font-size: 16px; font-weight: 600; }
+  body.busy #overlay { display: flex; }
+  .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2980b9; border-radius: 50%;
+             animation: spin .8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* 住宅設備アプリ共通のデザイン。色は Lien Fort（lienfort.co.jp）に合わせる。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --sub: #4b5567; --line: #e3e8f0; --bg: #f6f8fb; --pale: #eef2f9;
+          --en: Oswald, "Arial Narrow", sans-serif; }
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 10px 14px;
+            background: var(--ink); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px; letter-spacing: .3em; color: #9fb4dd; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; }
+
+  select, input, textarea { border: 1px solid var(--line) !important; color: var(--ink); }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.3); border-color: var(--blue) !important; }
+  h2 { letter-spacing: .03em; }
+
+  /* 今日の数字 */
+  .summary { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b { font-family: var(--en); font-weight: 500; font-size: 30px !important; color: var(--ink); }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button.r { border-radius: 12px !important; box-shadow: 0 2px 0 rgba(0,0,0,.12); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map { color: var(--blue) !important; }
+  .ok { background: var(--blue) !important; color: #fff !important; }
+  .add { border-color: var(--blue) !important; color: var(--blue) !important; background: #fff !important; }
+  .tabs button { border: 1px solid var(--line) !important; background: #fff !important; color: var(--sub) !important; }
+  .tabs button.on { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
+  .choice button.on { background: var(--ink) !important; border-color: var(--ink) !important; }
+
+  /* カード・表 */
+  .card, td.d { border: 1px solid var(--line) !important; box-shadow: 0 1px 2px rgba(24,32,46,.05); }
+  .card summary, .req { color: var(--blue) !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--blue) !important; }
+  .legend span:first-child i { background: var(--blue) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  .spinner { border-top-color: var(--blue) !important; }
+</style>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>叩きカウンター</b></div></header>
+  <select id="name"><option value="">名前を選択</option></select>
+  <div class="summary">
+    <div>叩き数<b id="knock">0</b></div>
+    <div>対面数<b id="face">0</b></div>
+    <div>アポ<b id="apo">0</b></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button class="undo" id="undo">↩ 直前を取り消す</button>
+  <div id="msg"></div>
+  <div id="pending"></div>
+  <div id="overlay"><div class="spinner"></div><span id="overlayText">記録中…</span></div>
+
+<script>
+  const COLORS = { '不在':'#8a8f98', 'インターホンNG':'#d9534f', 'フロントNG':'#e67e22', 'トーク後NG':'#c0392b',
+                   'アポ':'#27ae60', '再訪':'#2980b9', '蓄ファ':'#8e44ad', '対象外':'#555' };
+  const FACE = ['フロントNG','トーク後NG','アポ','再訪','蓄ファ','対象外'];
+  const $ = id => document.getElementById(id);
+  let results = [], busy = false, sending = false, sent = {};
+
+  // 住宅設備アプリの叩きカウンター（元は 31_叩きカウンター/コード/index.html）。スマホの保存はクローザー入力と分けて tQueue・tName
+  // 押した記録はまずスマホに保存し（未送信）、電波があれば送る。電波がない間はたまっていき、戻ったら送る
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem('tQueue')) || []; } catch (e) {}
+  function saveQueue() { try { localStorage.setItem('tQueue', JSON.stringify(queue)); } catch (e) {} }
+  const day = t => new Date(t).toDateString();
+
+  function render() {
+    const name = $('name').value, counts = Object.assign({}, sent);
+    queue.filter(q => q.name === name && day(q.ts) === day(Date.now())).forEach(q => counts[q.result] = (counts[q.result] || 0) + 1);
+    results.forEach(r => $('c-' + r).textContent = counts[r] || 0);
+    const face = FACE.reduce((s, r) => s + (counts[r] || 0), 0);
+    $('face').textContent = face;
+    $('knock').textContent = face + (counts['不在'] || 0) + (counts['インターホンNG'] || 0);
+    $('apo').textContent = counts['アポ'] || 0;
+    $('pending').style.display = queue.length ? 'block' : 'none';
+    $('pending').textContent = '未送信 ' + queue.length + '件（電波が戻ったら自動で送ります）';
+  }
+
+  function record(result) {
+    const name = $('name').value;
+    if (!name) { $('msg').textContent = '名前を選んでください'; return; }
+    if (busy) return;
+    queue.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), name: name, result: result, ts: Date.now() });
+    saveQueue();
+    $('msg').textContent = '記録しました：' + result;
+    render();
+    // 押し間違い防止に少しの間ほかを押せなくする
+    setBusy(true, '記録中…');
+    setTimeout(() => setBusy(false), 500);
+    flush();
+  }
+
+  // 未送信をまとめて送る。送れた分だけ消す（同じ記録は二重に入らない）
+  function flush() {
+    if (sending || !queue.length) return;
+    sending = true;
+    const batch = queue.slice(0, 50);
+    google.script.run
+      .withSuccessHandler(r => {
+        const ids = r.ids || r;
+        sending = false;
+        queue = queue.filter(q => !ids.includes(q.id));
+        if (r.unknown) $('msg').textContent = '名前が見つからない記録が' + r.unknown + '件ありました（管理者に連絡してください）';
+        saveQueue();
+        loadToday();
+        if (queue.length) flush();
+      })
+      .withFailureHandler(() => { sending = false; render(); })
+      .tAddRecords(batch);
+  }
+
+  function undo() {
+    const name = $('name').value;
+    if (!name) { $('msg').textContent = '名前を選んでください'; return; }
+    if (!confirm('直前の記録を取り消しますか？')) return;
+    const i = queue.map(q => q.name).lastIndexOf(name);
+    if (i >= 0) {
+      queue.splice(i, 1); saveQueue(); render();
+      $('msg').textContent = '取り消しました（未送信の分）';
+      return;
+    }
+    if (!navigator.onLine) { $('msg').textContent = '電波がない時は、送信済みの記録は取り消せません'; return; }
+    setBusy(true, '取り消し中…');
+    google.script.run
+      .withSuccessHandler(c => { setBusy(false); sent = c; render(); $('msg').textContent = '取り消しました'; })
+      .withFailureHandler(e => { setBusy(false); $('msg').textContent = 'エラー: ' + e.message; })
+      .tUndoLast(name);
+  }
+
+  // 少しの間、画面全体を覆ってほかのボタンや名前を触れないようにする
+  function setBusy(on, text) {
+    busy = on;
+    if (text) $('overlayText').textContent = text;
+    document.body.classList.toggle('busy', on);
+    document.querySelectorAll('button, select').forEach(el => el.disabled = on);
+  }
+
+  function loadToday() {
+    if (!$('name').value) return render();
+    google.script.run.withSuccessHandler(c => { sent = c; render(); }).withFailureHandler(render).tGetToday($('name').value);
+  }
+
+  google.script.run.withSuccessHandler(cfg => {
+    results = cfg.results;
+    cfg.names.forEach(n => $('name').add(new Option(n, n)));
+    results.forEach(r => {
+      const b = document.createElement('button');
+      b.className = 'r'; b.style.background = COLORS[r] || '#333';
+      b.innerHTML = r + '<span id="c-' + r + '">0</span>';
+      b.onclick = () => record(r);
+      $('grid').appendChild(b);
+    });
+    try { const saved = localStorage.getItem('tName'); if (saved) $('name').value = saved; } catch (e) {}
+    loadToday();
+    flush();
+  }).tConfig();
+
+  $('name').onchange = () => {
+    try { localStorage.setItem('tName', $('name').value); } catch (e) {}
+    sent = {};
+    loadToday();
+  };
+  $('undo').onclick = undo;
+  window.addEventListener('online', flush);
+  setInterval(flush, 20000);
+  // 開きっぱなしでも、日付が変わったら今日の数字に切り替える（0時に0へ）
+  let shownDay = day(Date.now());
+  setInterval(() => {
+    if (day(Date.now()) === shownDay) return;
+    shownDay = day(Date.now()); sent = {}; render(); loadToday();
+  }, 30000);
+</script>
+</body>
+</html>

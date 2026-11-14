@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>催事 お客様登録</title>
+<script src="api.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 16px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
+  h2 { margin: 0 0 8px; font-size: 20px; }
+  label { display: block; font-size: 14px; color: #555; margin: 12px 0 4px; }
+  select, input { width: 100%; font-size: 17px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+  .other { margin-top: 6px; display: none; }
+  .ok { width: 100%; margin: 22px 0 10px; padding: 16px; font-size: 18px; font-weight: 600; border: 0; border-radius: 12px; background: #27ae60; color: #fff; }
+  .ok:active { transform: scale(.97); }
+  #msg { text-align: center; min-height: 20px; font-size: 15px; color: #27ae60; font-weight: 600; }
+  #pending { display: none; white-space: pre-line; margin-top: 10px; padding: 10px; border-radius: 10px; background: #fff3cd; color: #7a5b00; font-size: 14px; text-align: center; }
+  .count { text-align: center; font-size: 14px; color: #666; margin-bottom: 30px; }
+  .sides { display: flex; gap: 8px; }
+  .sides button { flex: 1; padding: 12px; font-size: 17px; border-radius: 10px; border: 1px solid #ccc; background: #fff; color: #222; }
+  .sides button.on { background: #2c6fbb; border-color: #2c6fbb; color: #fff; font-weight: 600; }
+  .close-btn { width: 100%; padding: 14px; font-size: 16px; border: 1px solid #2c6fbb; border-radius: 12px; background: #fff; color: #2c6fbb; font-weight: 600; }
+  #close { display: none; margin-top: 8px; padding: 4px 14px 14px; border-radius: 12px; background: #fff; }
+  #close h3 { margin: 12px 0 0; font-size: 17px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .calc { margin-top: 10px; font-size: 14px; color: #555; }
+  #close .ok { background: #2c6fbb; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* 住宅設備アプリ共通のデザイン。色は Lien Fort（lienfort.co.jp）に合わせる。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --sub: #4b5567; --line: #e3e8f0; --bg: #f6f8fb; --pale: #eef2f9;
+          --en: Oswald, "Arial Narrow", sans-serif; }
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 10px 14px;
+            background: var(--ink); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px; letter-spacing: .3em; color: #9fb4dd; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; }
+
+  select, input, textarea { border: 1px solid var(--line) !important; color: var(--ink); }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.3); border-color: var(--blue) !important; }
+  h2 { letter-spacing: .03em; }
+
+  /* 今日の数字 */
+  .summary { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b { font-family: var(--en); font-weight: 500; font-size: 30px !important; color: var(--ink); }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button.r { border-radius: 12px !important; box-shadow: 0 2px 0 rgba(0,0,0,.12); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map { color: var(--blue) !important; }
+  .ok { background: var(--blue) !important; color: #fff !important; }
+  .add { border-color: var(--blue) !important; color: var(--blue) !important; background: #fff !important; }
+  .tabs button { border: 1px solid var(--line) !important; background: #fff !important; color: var(--sub) !important; }
+  .tabs button.on { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
+  .choice button.on { background: var(--ink) !important; border-color: var(--ink) !important; }
+
+  /* カード・表 */
+  .card, td.d { border: 1px solid var(--line) !important; box-shadow: 0 1px 2px rgba(24,32,46,.05); }
+  .card summary, .req { color: var(--blue) !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--blue) !important; }
+  .legend span:first-child i { background: var(--blue) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  .spinner { border-top-color: var(--blue) !important; }
+</style>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>催事 お客様登録</b></div></header>
+  <h2>催事 お客様登録</h2>
+  <label>催事会場</label><select id="venue"></select><input class="other" id="venue-o" placeholder="会場の名前">
+  <label>AP（自分）</label><select id="ap"></select><input class="other" id="ap-o" placeholder="APの名前">
+  <label>CC（キャッチャー）</label><select id="cc"></select><input class="other" id="cc-o" placeholder="CCの名前">
+  <label>QP（アンケート係）</label><select id="qp"></select><input class="other" id="qp-o" placeholder="QPの名前">
+  <label>お客様の名前</label><input id="customer" placeholder="例：山田太郎様">
+  <label>両面／片面</label><div class="sides"><button type="button" data-side="両面">両面</button><button type="button" data-side="片面">片面</button></div>
+  <label>年齢</label><input id="age" type="number" inputmode="numeric" placeholder="例：65">
+  <label>連絡先</label><input id="tel" type="tel" inputmode="tel" placeholder="例：09012345678">
+  <label>設置先エリア</label><input id="area" placeholder="例：川西市">
+  <label>次回対応日</label><input id="next" type="date">
+  <button class="ok" id="send">登録する</button>
+  <div id="msg"></div>
+  <div id="pending"></div>
+  <div class="count" id="count"></div>
+
+  <button class="close-btn" id="open-close">今日の締めを入れる</button>
+  <div id="close">
+    <h3>今日の締め（<span id="c-venue"></span>）</h3>
+    <label>日付</label><input id="c-date" type="date">
+    <div class="grid">
+      <div><label>スタッフ数</label><input id="c-staff" type="number" inputmode="numeric" min="0"></div>
+      <div><label>キャッチ配布数</label><input id="c-dist" type="number" inputmode="numeric" min="0"></div>
+      <div><label>キャッチ成功数</label><input id="c-catch" type="number" inputmode="numeric" min="0"></div>
+      <div><label>抽選参加数</label><input id="c-lottery" type="number" inputmode="numeric" min="0"></div>
+      <div><label>着座_両面</label><input id="c-seatW" type="number" inputmode="numeric" min="0"></div>
+      <div><label>着座_片面</label><input id="c-seatS" type="number" inputmode="numeric" min="0"></div>
+      <div><label>戸建数</label><input id="c-house" type="number" inputmode="numeric" min="0"></div>
+    </div>
+    <div class="calc" id="c-calc"></div>
+    <button class="ok" id="c-send">締めを送る</button>
+    <div class="calc">アポ獲得数（両面・片面）は、登録したお客様から自動で数えます。入れ直すと上書きします。</div>
+  </div>
+  <div style="height:30px"></div>
+
+<script>
+  const OTHER = 'その他（手入力）';
+  const SELECTS = ['venue', 'ap', 'cc', 'qp'];
+  const KEEP = ['venue', 'ap', 'cc', 'qp']; // 次の人でもそのまま残す
+  const $ = id => document.getElementById(id);
+  const CLOSE = ['staff', 'dist', 'catch', 'lottery', 'seatW', 'seatS', 'house'];
+  let sending = false, lastError = '', registered = 0, side = '';
+
+  // 登録はまずスマホに保存し（未送信）、電波があれば送る。電波がない間はたまっていき、戻ったら送る
+  let queue = [], cqueue = [];
+  try { queue = JSON.parse(localStorage.getItem('apQueue')) || []; } catch (e) {}
+  try { cqueue = JSON.parse(localStorage.getItem('apCloseQueue')) || []; } catch (e) {}
+  function saveQueue() { try { localStorage.setItem('apQueue', JSON.stringify(queue)); localStorage.setItem('apCloseQueue', JSON.stringify(cqueue)); } catch (e) {} }
+
+  function fill(id, list) {
+    $(id).add(new Option('選択', ''));
+    list.concat([OTHER]).forEach(v => $(id).add(new Option(v, v)));
+  }
+  function val(id) { return $(id).value === OTHER ? $(id + '-o').value.trim() : $(id).value; }
+  // 手入力した名前は、次から選択肢に出す
+  function remember(id, v) {
+    if (!v || [...$(id).options].some(o => o.value === v)) return;
+    $(id).add(new Option(v, v), $(id).options.length - 1);
+  }
+
+  function render() {
+    const n = queue.length + cqueue.length;
+    $('pending').style.display = n ? 'block' : 'none';
+    $('pending').textContent = '未送信 ' + n + '件（電波が戻ったら自動で送ります）' + (lastError ? '\n' + lastError : '');
+    $('count').textContent = registered ? 'この画面で登録した人：' + registered + '人' : '';
+  }
+
+  function send() {
+    const it = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), ts: Date.now(),
+      venue: val('venue'), ap: val('ap'), cc: val('cc'), qp: val('qp'), customer: $('customer').value.trim(),
+      age: $('age').value, tel: $('tel').value.replace(/[^\d-]/g, ''), area: $('area').value.trim(), next: $('next').value, side: side };
+    if (!it.venue || !it.ap || !it.customer || !side) { alert('催事会場・AP・お客様の名前・両面／片面を入れてください'); return; }
+    if (!confirm(it.customer + '（' + side + '）\nこの内容で登録しますか？')) return;
+    queue.push(it); saveQueue();
+    SELECTS.forEach(id => { if (it[id] && $(id).value === OTHER) { remember(id, it[id]); $(id).value = it[id]; $(id + '-o').style.display = 'none'; } });
+    try { KEEP.forEach(id => localStorage.setItem('ap-' + id, $(id).value)); } catch (e) {}
+    ['customer', 'age', 'tel', 'area', 'next'].forEach(id => $(id).value = '');
+    setSide('');
+    registered++;
+    $('msg').textContent = '登録しました：' + it.customer + (navigator.onLine ? '' : '（電波が戻ったら送ります）');
+    render();
+    window.scrollTo(0, 0);
+    flush();
+  }
+
+  // 未送信をまとめて送る。送れた分だけ消す（同じ登録は二重に入らない）
+  function flush() {
+    if (!sending && !queue.length && cqueue.length) return flushClose();
+    if (sending || !queue.length) return render();
+    sending = true;
+    google.script.run
+      .withSuccessHandler(r => {
+        sending = false;
+        queue = queue.filter(q => !r.done.includes(q.id));
+        lastError = r.errors.join('\n');
+        saveQueue(); render();
+        if ((queue.length || cqueue.length) && r.done.length) flush();
+      })
+      .withFailureHandler(() => { sending = false; render(); })
+      .addCustomers(queue.slice(0, 20));
+  }
+
+  function flushClose() {
+    sending = true;
+    google.script.run
+      .withSuccessHandler(r => {
+        sending = false;
+        cqueue = cqueue.filter(q => !r.done.includes(q.id));
+        saveQueue(); render();
+      })
+      .withFailureHandler(() => { sending = false; render(); })
+      .addNippo(cqueue.slice(0, 10));
+  }
+
+  function setSide(v) {
+    side = v;
+    document.querySelectorAll('.sides button').forEach(b => b.classList.toggle('on', b.dataset.side === v));
+  }
+
+  // 今日の締め：会場は上で選んでいる会場
+  function num(id) { return $('c-' + id).value === '' ? '' : Number($('c-' + id).value); }
+  function calc() {
+    const d = num('dist'), c = num('catch'), w = num('seatW'), s = num('seatS');
+    $('c-calc').textContent = 'キャッチ失注数：' + (d === '' ? '-' : d - (c || 0)) + '　着座数：' + (w === '' && s === '' ? '-' : (w || 0) + (s || 0));
+  }
+  function sendClose() {
+    const it = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), venue: val('venue'), date: $('c-date').value };
+    CLOSE.forEach(k => it[k] = num(k));
+    if (!it.venue || !it.date) { alert('催事会場と日付を入れてください'); return; }
+    if (CLOSE.some(k => it[k] === '' || it[k] < 0)) { alert('数字を全部入れてください（0 も入れられます）'); return; }
+    if (it.catch > it.dist) { alert('キャッチ成功数が配布数より多くなっています'); return; }
+    if (!confirm(it.date + ' ' + it.venue + '\n配布 ' + it.dist + '・成功 ' + it.catch + '・着座 ' + (it.seatW + it.seatS) + '\nこの内容で送りますか？')) return;
+    cqueue.push(it); saveQueue();
+    CLOSE.forEach(k => $('c-' + k).value = '');
+    calc();
+    $('close').style.display = 'none';
+    $('msg').textContent = '締めを受け付けました：' + it.venue + (navigator.onLine ? '' : '（電波が戻ったら送ります）');
+    render();
+    window.scrollTo(0, 0);
+    flush();
+  }
+
+  google.script.run.withSuccessHandler(cfg => {
+    fill('venue', cfg.venues);
+    ['ap', 'cc', 'qp'].forEach(id => fill(id, cfg.names));
+    try { KEEP.forEach(id => { const v = localStorage.getItem('ap-' + id); if (v) { remember(id, v); $(id).value = v; } }); } catch (e) {}
+    flush();
+  }).withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).getApConfig();
+
+  SELECTS.forEach(id => $(id).onchange = () => { $(id + '-o').style.display = $(id).value === OTHER ? 'block' : 'none'; });
+  $('send').onclick = send;
+  document.querySelectorAll('.sides button').forEach(b => b.onclick = () => setSide(b.dataset.side));
+  $('open-close').onclick = () => {
+    const open = $('close').style.display !== 'block';
+    $('close').style.display = open ? 'block' : 'none';
+    if (open) { $('c-venue').textContent = val('venue') || '会場を選んでください'; if (!$('c-date').value) $('c-date').value = new Date().toLocaleDateString('sv-SE'); calc(); }
+  };
+  CLOSE.forEach(k => $('c-' + k).oninput = calc);
+  $('c-send').onclick = sendClose;
+  window.addEventListener('online', flush);
+  setInterval(flush, 20000);
+</script>
+</body>
+</html>
