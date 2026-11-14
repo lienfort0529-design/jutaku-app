@@ -21,8 +21,7 @@
   .hero::before { right: -50px; top: -60px; width: 180px; height: 180px; }
   .hero::after { right: 30px; top: 60px; width: 70px; height: 70px; border-color: rgba(42,86,168,.5); }
   .logo { display: flex; align-items: center; gap: 12px; font-family: Oswald, "Arial Narrow", sans-serif; font-size: 13px; letter-spacing: .35em; }
-  .mark { position: relative; width: 16px; height: 16px; border: 3px solid #fff; transform: rotate(45deg); }
-  .mark::after { content: ""; position: absolute; inset: 2px; background: #2a56a8; }
+  .mark { width: 24px; height: 24px; } /* Lien Fort のロゴ（lienfort.co.jp の暗い背景用の白い版） */
   h1 { margin: 20px 0 6px; font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", serif; font-size: 32px; letter-spacing: .14em; }
   .hero p { margin: 0; font-family: Oswald, "Arial Narrow", sans-serif; font-size: 11px; letter-spacing: .3em; color: #9fb4dd; }
   .list { margin-top: 18px; }
@@ -87,7 +86,7 @@
 </head>
 <body>
   <div class="hero">
-    <div class="logo"><span class="mark"></span>LIEN FORT</div>
+    <div class="logo"><svg class="mark" viewBox="345 157 536 536" aria-hidden="true"><path fill="#fff" d="M355 425 613 167 846 399H742L716 374 613 477H510L665 322 613 271 458 425Z"/><path fill="#fff" opacity=".55" d="M407 425H458L484 451H381ZM742 399H846L820 425H767Z"/><path fill="#fff" opacity=".8" d="M381 451H484L613 579 767 425H871L613 683Z"/></svg>LIEN FORT</div>
     <h1>住宅設備</h1>
     <p>HOUSING EQUIPMENT</p>
   </div>

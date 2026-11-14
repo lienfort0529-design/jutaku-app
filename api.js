@@ -39,7 +39,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwuSrk2ny2oWX1hnTH2645A
     const show = () => {
       const d = document.createElement('div');
       d.id = 'lfLogin';
-      d.innerHTML = '<div class="box"><div class="mk"></div><small>LIEN FORT</small><b>住宅設備</b>' +
+      d.innerHTML = '<div class="box"><svg class="mk" viewBox="345 157 536 536" aria-hidden="true"><path fill="#fff" d="M355 425 613 167 846 399H742L716 374 613 477H510L665 322 613 271 458 425Z"/><path fill="#fff" opacity=".55" d="M407 425H458L484 451H381ZM742 399H846L820 425H767Z"/><path fill="#fff" opacity=".8" d="M381 451H484L613 579 767 425H871L613 683Z"/></svg><small>LIEN FORT</small><b>住宅設備</b>' +
         '<p></p><input type="password" placeholder="合言葉" autocomplete="current-password"><button>はじめる</button></div>';
       d.querySelector('p').textContent = msg || 'チームの合言葉を入れてください';
       const save = () => {
