@@ -318,11 +318,20 @@
     run('mPing', me, on && pos ? pos : null, ver).then(show).catch(e => setState('通信できません：' + e.message));
     flush();
   }
-  setInterval(tick, SEND_MS);
+  // 50人が同じ秒に送らないように、最初の1分の中でずらしてから1分ごと
+  setTimeout(() => { tick(); setInterval(tick, SEND_MS); }, Math.random() * SEND_MS);
 
   function show(d) {
     on = d.on;
-    if (d.pins) { pins = d.pins; ver = d.ver; drawPins(); }
+    if (d.pins) { // full なら全部、それ以外は前回から変わった分だけ
+      if (d.full) pins = d.pins;
+      else {
+        const ch = new Set(d.pins.map(p => p.id).concat(d.deleted || []));
+        pins = pins.filter(p => !ch.has(p.id)).concat(d.pins);
+      }
+      drawPins();
+    }
+    ver = d.ver;
     peopleLayer.clearLayers();
     d.people.filter(p => p.name !== me).forEach(p => {
       const icon = L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 34],
@@ -507,9 +516,9 @@
     if (sending || !queue.length) return;
     sending = true;
     const q = queue[0];
-    run(q.fn, q.arg, me).then(d => {
+    run(q.fn, q.arg, me, ver).then(d => {
       queue.shift(); saveQueue(); sending = false;
-      ver = ''; show(d); // 送った記録の分を地図に出す
+      show(d); // 送った記録の分を地図に出す
       if (queue.length) flush(); else drawPins();
     }).catch(e => {
       sending = false; setState();
