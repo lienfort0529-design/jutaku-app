@@ -40,7 +40,7 @@
   .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
          box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
   #layerBtn { font-size: 13px; font-weight: 600; color: #18202e; }
-  .mlegend { position: fixed; left: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 8px; max-width: 220px; padding: 6px 9px;
+  .mlegend { position: fixed; left: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 8px; max-width: 230px; padding: 6px 9px;
             background: rgba(255,255,255,.92); border-radius: 10px; font-size: 11px; color: #4b5567; }
   .mlegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
   /* 地図の上の名前 */
@@ -57,7 +57,17 @@
   .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .stats button { padding: 13px 0; font-size: 16px; font-weight: 600; border-radius: 10px; border: 2px solid transparent; color: #fff; }
   .stats button.on { border-color: #18202e; box-shadow: 0 0 0 2px #fff inset; }
-  .stats button.light { color: #18202e; }
+  .stats button { padding: 11px 2px; font-size: 14px; }
+  .stats button.light { color: #18202e; border-color: #cfd6e2; }
+  .stats button.light.on { border-color: #18202e; }
+  .mlegend.closed span:not(:first-child) { display: none; }
+  .mlegend b { font-weight: 600; }
+  /* 地図に置くときの種類 */
+  .tags { display: none; gap: 6px; overflow-x: auto; margin: 0 -2px 8px; padding: 2px; -webkit-overflow-scrolling: touch; }
+  .panel.placing .tags { display: flex; }
+  .tags button { flex: none; padding: 8px 11px; font-size: 14px; font-weight: 600; border-radius: 18px; border: 2px solid transparent; color: #fff; }
+  .tags button.light { color: #18202e; border-color: #cfd6e2; }
+  .tags button.on { border-color: #18202e; box-shadow: 0 0 0 2px #fff inset; }
   .names button { display: block; width: 100%; margin-bottom: 8px; padding: 13px; font-size: 17px; text-align: left; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; }
   .photo img, .visit img { display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border-radius: 8px; }
   .actions { display: flex; gap: 10px; margin: 20px 0 10px; }
@@ -131,6 +141,7 @@
   <button class="fab" id="layerBtn">写真</button>
   <div class="panel" id="panel">
     <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
+    <div class="tags" id="tags"></div>
     <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">今ここにピン</button><button id="placeBtn">地図に置く</button></div>
   </div>
 
@@ -175,7 +186,11 @@
   const run = (fn, ...a) => new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(ng)[fn](...a));
   const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
                   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } } };
-  const COLORS = { '未訪問': '#9aa3b2', '不在': '#f1c40f', '商談中': '#2a56a8', '再訪問': '#e67e22', '成約': '#27ae60', 'NG': '#c0392b' };
+  const COLORS = { '新規': '#ffffff', '10年以上': '#7cc8f0', '9年以下': '#f5c542', '蓄電池、ファ': '#1d4ed8', 'NG': '#e74c3c', '対象外': '#a855f7',
+    '見込み・再訪問': '#16a34a', 'アポ獲得': '#eef03a', '訪問禁止': '#b91c1c', '駐車位置': '#0e7490', '境界線': '#ca8a04', '顧客': '#06b6d4',
+    'クーリングオフ・ローン否決': '#374151', '未分類': '#9ca3af' };
+  const LIGHT = ['新規', '10年以上', '9年以下', 'アポ獲得']; // 色が薄いので字を黒に
+  const tagBtn = s => `<button style="background:${COLORS[s] || '#9ca3af'}" class="${LIGHT.includes(s) ? 'light' : ''}">${s}</button>`;
   const SEND_MS = 60000;
 
   let me = store.get('mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
@@ -213,7 +228,14 @@
   }
   window.addEventListener('resize', layout);
 
-  $('legend').innerHTML = statuses.map(s => `<span><i style="background:${COLORS[s]}"></i>${s}</span>`).join('');
+  // 凡例は14種類あるので、押したときだけ全部出す
+  function drawLegend() {
+    $('legend').innerHTML = '<span><b>凡例 ▾</b></span>' + statuses.map(s =>
+      `<span><i style="background:${COLORS[s]};box-shadow:0 0 0 1px #9aa3b2"></i>${s}</span>`).join('');
+  }
+  $('legend').classList.add('closed');
+  $('legend').onclick = () => $('legend').classList.toggle('closed');
+  drawLegend();
 
   // ===== 自分の位置（画面を開いている間ずっと見る。送るのは出勤中だけ） =====
   function watch() {
@@ -261,7 +283,7 @@
     const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg);
     pins.concat(waiting).filter(p => !gone.includes(p.id)).forEach(p => {
       const st = latestStatus(p);
-      L.circleMarker([p.lat, p.lng], { radius: 11, weight: 3, color: '#fff', fillColor: COLORS[st] || '#9aa3b2', fillOpacity: 1,
+      L.circleMarker([p.lat, p.lng], { radius: 11, weight: 3, color: st === '新規' ? '#18202e' : '#fff', fillColor: COLORS[st] || '#9ca3af', fillOpacity: 1,
         dashArray: p.wait ? '4 3' : null, bubblingMouseEvents: false }).on('click', () => openView(p)).addTo(pinLayer);
     });
   }
@@ -277,7 +299,7 @@
     const wait = queue.length ? `　未送信 ${queue.length}件` : '';
     $('panel').classList.toggle('placing', placing);
     $('stateText').textContent = msg || (!me ? '右上で名前を選んでください' : placing
-      ? `地図を押した場所に「未訪問」ピンを置きます。終わったら「置き終わる」${wait}`
+      ? `地図を押した場所に「${placeTag}」のピンを置きます${wait}`
       : on
       ? `出勤中・位置を共有しています（画面を開いたままにしてください）${wait}`
       : `退勤中（位置は共有していません）${wait}`);
@@ -332,6 +354,17 @@
     if (pos.acc > 100 && !confirm(`位置のずれが大きいです（約${Math.round(pos.acc)}m）。このまま立てますか？`)) return;
     openForm({ mode: 'pin', lat: pos.lat, lng: pos.lng });
   };
+  // 置くピンの種類（スマホが覚える。最初は「新規」）
+  let placeTag = store.get('mPlaceTag', '新規');
+  function drawTags() {
+    if (!statuses.includes(placeTag)) placeTag = statuses[0];
+    $('tags').innerHTML = statuses.map(tagBtn).join('');
+    [...$('tags').children].forEach(b => {
+      b.classList.toggle('on', b.textContent === placeTag);
+      b.onclick = () => { placeTag = b.textContent; store.set('mPlaceTag', placeTag); drawTags(); setState(); };
+    });
+  }
+  drawTags();
   $('placeBtn').onclick = () => {
     if (!me) return openWho();
     placing = !placing;
@@ -343,7 +376,7 @@
   map.on('click', e => {
     if (!placing) return;
     const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
-    queue.push({ fn: 'mAddPin', arg: { id, lat: e.latlng.lat, lng: e.latlng.lng, name: me, status: '未訪問', memo: '', photo: '', ts, plan: true } });
+    queue.push({ fn: 'mAddPin', arg: { id, lat: e.latlng.lat, lng: e.latlng.lng, name: me, status: placeTag, memo: '', photo: '', ts, plan: true } });
     saveQueue(); drawPins(); setState(); flush();
   });
 
@@ -364,7 +397,7 @@
     form = Object.assign({ status: '', photo: '' }, f);
     $('formTitle').textContent = f.mode === 'pin' ? 'ピンを立てる' : '訪問を記録';
     $('formSub').textContent = f.mode === 'pin' ? `今いる場所（誤差 約${Math.round(pos.acc)}m）に ${me} で立てます` : (f.pin.address || '') + `　訪問者：${me}`;
-    $('stats').innerHTML = statuses.map(s => `<button style="background:${COLORS[s]}" class="${s === '不在' ? 'light' : ''}">${s}</button>`).join('');
+    $('stats').innerHTML = statuses.map(tagBtn).join('');
     [...$('stats').children].forEach(b => b.onclick = () => {
       form.status = b.textContent;
       [...$('stats').children].forEach(x => x.classList.toggle('on', x === b));
@@ -438,7 +471,7 @@
       .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
     const draw = list => {
       $('visits').innerHTML = list.map(v => `<div class="visit"><div class="top"><span><b>${esc(v.by)}</b>　${fmt(v.at)}${v.wait ? '（未送信）' : ''}</span>
-        <span class="badge" style="background:${COLORS[v.status] || '#9aa3b2'}${v.status === '不在' ? ';color:#18202e' : ''}">${esc(v.status)}</span></div>
+        <span class="badge" style="background:${COLORS[v.status] || '#9ca3af'}${LIGHT.includes(v.status) ? ';color:#18202e;box-shadow:0 0 0 1px #cfd6e2 inset' : ''}">${esc(v.status)}</span></div>
         ${v.memo ? `<p>${esc(v.memo)}</p>` : ''}
         ${v.photo ? `<a href="https://drive.google.com/thumbnail?id=${v.photo}&sz=w2000" target="_blank"><img src="https://drive.google.com/thumbnail?id=${v.photo}&sz=w800"></a>` : ''}</div>`).join('');
     };
@@ -457,7 +490,7 @@
   layout();
   $('whoBtn').textContent = me || '名前';
   run('mConfig').then(c => {
-    names = c.names; statuses = c.statuses;
+    names = c.names; statuses = c.statuses; drawLegend(); drawTags();
     if (!me) openWho();
     tick();
   }).catch(e => setState('エラー：' + e.message));
