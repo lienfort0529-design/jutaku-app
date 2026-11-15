@@ -40,9 +40,18 @@
   .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
          box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
   #layerBtn { font-size: 13px; font-weight: 600; color: #18202e; }
-  .mlegend { position: fixed; left: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 8px; max-width: 230px; padding: 6px 9px;
-            background: rgba(255,255,255,.92); border-radius: 10px; font-size: 11px; color: #4b5567; }
-  .mlegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
+  /* 左上：表示中の数と絞り込み */
+  .showBtn { position: fixed; left: 10px; z-index: 5; padding: 8px 12px; border-radius: 18px; border: 1px solid #e3e8f0; background: #fff;
+             box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 13px; font-weight: 600; color: #18202e; }
+  .showBtn.on { background: #18202e; color: #fff; border-color: #18202e; }
+  .pinMk { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+  .sheet .kinds label { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; padding: 8px 10px; background: #fff; border: 1px solid #e3e8f0;
+                 border-radius: 10px; font-size: 16px; color: #18202e; }
+  .sheet .kinds label svg { flex: none; width: 24px; height: 32px; }
+  .sheet .kinds label span { flex: 1; }
+  .kinds input { width: 22px; height: 22px; flex: none; }
+  .two { display: flex; gap: 8px; margin-bottom: 8px; }
+  .two button { flex: 1; padding: 9px; font-size: 14px; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; }
   /* 地図の上の名前 */
   .person { display: flex; flex-direction: column; align-items: center; }
   .person b { padding: 2px 7px; border-radius: 9px; background: #18202e; color: #fff; font-size: 12px; white-space: nowrap; }
@@ -60,8 +69,6 @@
   .stats button { padding: 11px 2px; font-size: 14px; }
   .stats button.light { color: #18202e; border-color: #cfd6e2; }
   .stats button.light.on { border-color: #18202e; }
-  .mlegend.closed span:not(:first-child) { display: none; }
-  .mlegend b { font-weight: 600; }
   /* 地図に置くときの種類 */
   .tags { display: none; gap: 6px; overflow-x: auto; margin: 0 -2px 8px; padding: 2px; -webkit-overflow-scrolling: touch; }
   .panel.placing .tags { display: flex; }
@@ -136,7 +143,7 @@
   <header class="lf-bar" id="bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>営業マップ</b></div>
     <button class="who" id="whoBtn">名前</button></header>
   <div id="map"></div>
-  <div class="mlegend" id="legend"></div>
+  <button class="showBtn" id="showBtn">表示</button>
   <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
   <button class="fab" id="layerBtn">写真</button>
   <div class="panel" id="panel">
@@ -179,6 +186,21 @@
     <button class="del" id="delBtn">このピンを消す（置き間違い）</button>
   </div>
 
+  <!-- 表示するピン（凡例も兼ねる） -->
+  <div class="sheet" id="filter">
+    <h2>表示するピン</h2>
+    <div class="sub" id="filterSub"></div>
+    <label>担当者（立てた人・最後に訪問した人）</label>
+    <select id="fWho"></select>
+    <label>期間（最後に立てた・訪問した日）</label>
+    <select id="fDays"><option value="0">全部</option><option value="1">今日</option><option value="2">昨日から</option>
+      <option value="7">直近7日</option><option value="30">直近30日</option></select>
+    <label>種類</label>
+    <div class="two"><button id="fAll">全部表示</button><button id="fNone">全部消す</button></div>
+    <div class="kinds" id="fKinds"></div>
+    <div class="actions"><button class="cancel" id="fReset">元に戻す</button><button class="ok" id="fClose">閉じる</button></div>
+  </div>
+
   <div id="overlay"><div class="spinner"></div><span id="overlayText">保存中…</span></div>
 
 <script>
@@ -190,6 +212,17 @@
     '見込み・再訪問': '#16a34a', 'アポ獲得': '#eef03a', '訪問禁止': '#b91c1c', '駐車位置': '#0e7490', '境界線': '#ca8a04', '顧客': '#06b6d4',
     'クーリングオフ・ローン否決': '#374151', '未分類': '#9ca3af' };
   const LIGHT = ['新規', '10年以上', '9年以下', 'アポ獲得']; // 色が薄いので字を黒に
+  // ピンのマーク（しずく形に1文字）
+  const MARKS = { '新規': '新', '10年以上': '10', '9年以下': '9', '蓄電池、ファ': '蓄', 'NG': '✕', '対象外': '外', '見込み・再訪問': '再',
+    'アポ獲得': 'ア', '訪問禁止': '禁', '駐車位置': 'P', '境界線': '境', '顧客': '顧', 'クーリングオフ・ローン否決': '否', '未分類': '?' };
+  function pinSvg(st, wait) {
+    const c = COLORS[st] || '#9ca3af', light = LIGHT.includes(st), mk = MARKS[st] || '?';
+    return `<svg class="pinMk" viewBox="0 0 30 40" width="30" height="40"><path d="M15 39C15 39 2 23.5 2 14.5a13 13 0 0 1 26 0C28 23.5 15 39 15 39z"
+      fill="${c}" stroke="${light ? '#18202e' : '#fff'}" stroke-width="2"${wait ? ' stroke-dasharray="4 3"' : ''}/>
+      <text x="15" y="19" text-anchor="middle" font-size="${mk.length > 1 ? 11 : 13}" font-weight="700" font-family="Hiragino Sans, sans-serif"
+      fill="${light ? '#18202e' : '#fff'}">${mk}</text></svg>`;
+  }
+  const pinIcon = (st, wait) => L.divIcon({ className: '', html: pinSvg(st, wait), iconSize: [30, 40], iconAnchor: [15, 39] });
   const tagBtn = s => `<button style="background:${COLORS[s] || '#9ca3af'}" class="${LIGHT.includes(s) ? 'light' : ''}">${s}</button>`;
   const SEND_MS = 60000;
 
@@ -222,20 +255,45 @@
   function layout() {
     const top = $('bar').getBoundingClientRect().bottom;
     $('map').style.top = top + 'px';
-    $('legend').style.top = (top + 10) + 'px';
+    $('showBtn').style.top = (top + 10) + 'px';
     $('meBtn').style.top = (top + 10) + 'px';
     $('layerBtn').style.top = (top + 64) + 'px';
   }
   window.addEventListener('resize', layout);
 
-  // 凡例は14種類あるので、押したときだけ全部出す
-  function drawLegend() {
-    $('legend').innerHTML = '<span><b>凡例 ▾</b></span>' + statuses.map(s =>
-      `<span><i style="background:${COLORS[s]};box-shadow:0 0 0 1px #9aa3b2"></i>${s}</span>`).join('');
+  // ===== 表示するピン（種類・担当者・期間。スマホが覚える） =====
+  const F0 = { hide: [], who: '', days: 0 };
+  let filt = Object.assign({}, F0, store.get('mFilter', {}));
+  const filtered = () => filt.hide.length > 0 || !!filt.who || filt.days > 0;
+  function visible(p, st) {
+    if (p.wait) return true; // 未送信は必ず出す
+    if (filt.hide.includes(st)) return false;
+    if (filt.who && p.by !== filt.who && p.lastBy !== filt.who) return false;
+    if (filt.days > 0) {
+      const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - (filt.days - 1));
+      if (Math.max(p.last || 0, p.created || 0) < from.getTime()) return false;
+    }
+    return true;
   }
-  $('legend').classList.add('closed');
-  $('legend').onclick = () => $('legend').classList.toggle('closed');
-  drawLegend();
+  function saveFilter() { store.set('mFilter', filt); drawPins(); drawFilter(); }
+  function drawFilter() {
+    const who = [...new Set(names.concat(pins.map(p => p.by), pins.map(p => p.lastBy)).filter(Boolean))];
+    $('fWho').innerHTML = '<option value="">全員</option>' + who.map(n => `<option>${esc(n)}</option>`).join('');
+    $('fWho').value = filt.who; $('fDays').value = String(filt.days);
+    $('fKinds').innerHTML = statuses.map(s => `<label>${pinSvg(s)}<span>${s}</span><input type="checkbox" ${filt.hide.includes(s) ? '' : 'checked'}></label>`).join('');
+    [...$('fKinds').querySelectorAll('input')].forEach((c, i) => c.onchange = () => {
+      const s = statuses[i];
+      filt.hide = c.checked ? filt.hide.filter(x => x !== s) : filt.hide.concat(s);
+      saveFilter();
+    });
+  }
+  $('fWho').onchange = () => { filt.who = $('fWho').value; saveFilter(); };
+  $('fDays').onchange = () => { filt.days = Number($('fDays').value); saveFilter(); };
+  $('fAll').onclick = () => { filt.hide = []; saveFilter(); };
+  $('fNone').onclick = () => { filt.hide = statuses.slice(); saveFilter(); };
+  $('fReset').onclick = () => { filt = Object.assign({}, F0); saveFilter(); };
+  $('fClose').onclick = () => $('filter').classList.remove('open');
+  $('showBtn').onclick = () => { drawFilter(); $('filter').classList.add('open'); };
 
   // ===== 自分の位置（画面を開いている間ずっと見る。送るのは出勤中だけ） =====
   function watch() {
@@ -281,11 +339,16 @@
     pinLayer.clearLayers();
     const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: q.arg.plan ? 0 : 1 }, q.arg));
     const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg);
-    pins.concat(waiting).filter(p => !gone.includes(p.id)).forEach(p => {
+    const all = pins.concat(waiting).filter(p => !gone.includes(p.id));
+    let n = 0;
+    all.forEach(p => {
       const st = latestStatus(p);
-      L.circleMarker([p.lat, p.lng], { radius: 11, weight: 3, color: st === '新規' ? '#18202e' : '#fff', fillColor: COLORS[st] || '#9ca3af', fillOpacity: 1,
-        dashArray: p.wait ? '4 3' : null, bubblingMouseEvents: false }).on('click', () => openView(p)).addTo(pinLayer);
+      if (!visible(p, st)) return;
+      n++;
+      L.marker([p.lat, p.lng], { icon: pinIcon(st, p.wait) }).on('click', () => openView(p)).addTo(pinLayer);
     });
+    $('showBtn').textContent = filtered() ? `絞り込み中 ${n}/${all.length} ▾` : `表示 ${all.length}件 ▾`;
+    $('showBtn').classList.toggle('on', filtered());
   }
 
   // 未送信の訪問があれば、そのステータスを優先して色を付ける
@@ -377,6 +440,7 @@
     if (!placing) return;
     const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
     queue.push({ fn: 'mAddPin', arg: { id, lat: e.latlng.lat, lng: e.latlng.lng, name: me, status: placeTag, memo: '', photo: '', ts, plan: true } });
+    if (filt.hide.includes(placeTag)) { filt.hide = filt.hide.filter(x => x !== placeTag); store.set('mFilter', filt); } // 置いた種類が消えないように
     saveQueue(); drawPins(); setState(); flush();
   });
 
@@ -490,7 +554,7 @@
   layout();
   $('whoBtn').textContent = me || '名前';
   run('mConfig').then(c => {
-    names = c.names; statuses = c.statuses; drawLegend(); drawTags();
+    names = c.names; statuses = c.statuses; drawTags(); drawPins();
     if (!me) openWho();
     tick();
   }).catch(e => setState('エラー：' + e.message));
