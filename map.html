@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>営業マップ</title>
+<script src="api.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, sans-serif; }
+  select, input, textarea { width: 100%; font-size: 17px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; }
+  button { font-family: inherit; }
+  #map { position: fixed; left: 0; right: 0; bottom: 0; top: 56px; z-index: 1; }
+  .who { margin-left: auto; padding: 7px 12px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; background: none; color: #fff; font-size: 14px; }
+  /* 下のパネル */
+  .panel { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 5;
+           background: #fff; border-radius: 14px; padding: 10px; box-shadow: 0 4px 16px rgba(24,32,46,.18); }
+  .state { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5567; margin: 0 2px 8px; }
+  .state i { width: 10px; height: 10px; border-radius: 50%; background: #b8bcc2; flex: none; }
+  .state.on i { background: #27ae60; box-shadow: 0 0 0 4px rgba(39,174,96,.2); }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; padding: 14px 0; font-size: 16px; font-weight: 600; border-radius: 12px; border: 0; }
+  #clockBtn { flex: .8; background: #eef2f9; color: #18202e; }
+  #clockBtn.on { background: #fdecea; color: #c0392b; }
+  #pinBtn { background: #2a56a8; color: #fff; }
+  .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
+         box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
+  .mlegend { position: fixed; left: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 8px; max-width: 220px; padding: 6px 9px;
+            background: rgba(255,255,255,.92); border-radius: 10px; font-size: 11px; color: #4b5567; }
+  .mlegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
+  /* 地図の上の名前 */
+  .person { display: flex; flex-direction: column; align-items: center; }
+  .person b { padding: 2px 7px; border-radius: 9px; background: #18202e; color: #fff; font-size: 12px; white-space: nowrap; }
+  .person i { width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #e67e22; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.4); }
+  .person.old { opacity: .5; }
+  /* 重なる画面 */
+  .sheet { display: none; position: fixed; inset: 0; z-index: 20; overflow-y: auto; padding: 16px 16px 40px; background: #f6f8fb; }
+  .sheet.open { display: block; }
+  .sheet h2 { margin: 0 0 6px; font-size: 20px; }
+  .sheet label { display: block; font-size: 14px; color: #555; margin: 14px 0 6px; }
+  .sub { font-size: 13px; color: #4b5567; line-height: 1.6; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stats button { padding: 13px 0; font-size: 16px; font-weight: 600; border-radius: 10px; border: 2px solid transparent; color: #fff; }
+  .stats button.on { border-color: #18202e; box-shadow: 0 0 0 2px #fff inset; }
+  .stats button.light { color: #18202e; }
+  .names button { display: block; width: 100%; margin-bottom: 8px; padding: 13px; font-size: 17px; text-align: left; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; }
+  .photo img, .visit img { display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border-radius: 8px; }
+  .actions { display: flex; gap: 10px; margin: 20px 0 10px; }
+  .actions button { flex: 1; padding: 14px; font-size: 17px; font-weight: 600; border-radius: 12px; border: 0; }
+  .ok { background: #27ae60; color: #fff; }
+  .cancel { background: #ddd; }
+  .visit { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; }
+  .visit .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+  .badge { padding: 3px 9px; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .visit p { margin: 6px 0 0; font-size: 15px; white-space: pre-wrap; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 30;
+             align-items: center; justify-content: center; flex-direction: column; font-size: 16px; font-weight: 600; }
+  body.busy #overlay { display: flex; }
+  .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2980b9; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* 住宅設備アプリ共通のデザイン。色は Lien Fort（lienfort.co.jp）に合わせる。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --sub: #4b5567; --line: #e3e8f0; --bg: #f6f8fb; --pale: #eef2f9;
+          --en: Oswald, "Arial Narrow", sans-serif; }
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 10px 14px;
+            background: var(--ink); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px; letter-spacing: .3em; color: #9fb4dd; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; }
+
+  select, input, textarea { border: 1px solid var(--line) !important; color: var(--ink); }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.3); border-color: var(--blue) !important; }
+  h2 { letter-spacing: .03em; }
+
+  /* 今日の数字 */
+  .summary { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b { font-family: var(--en); font-weight: 500; font-size: 30px !important; color: var(--ink); }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button.r { border-radius: 12px !important; box-shadow: 0 2px 0 rgba(0,0,0,.12); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map { color: var(--blue) !important; }
+  .ok { background: var(--blue) !important; color: #fff !important; }
+  .add { border-color: var(--blue) !important; color: var(--blue) !important; background: #fff !important; }
+  .tabs button { border: 1px solid var(--line) !important; background: #fff !important; color: var(--sub) !important; }
+  .tabs button.on { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
+  .choice button.on { background: var(--ink) !important; border-color: var(--ink) !important; }
+
+  /* カード・表 */
+  .card, td.d { border: 1px solid var(--line) !important; box-shadow: 0 1px 2px rgba(24,32,46,.05); }
+  .card summary, .req { color: var(--blue) !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--blue) !important; }
+  .legend span:first-child i { background: var(--blue) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  .spinner { border-top-color: var(--blue) !important; }
+</style>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar" id="bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>営業マップ</b></div>
+    <button class="who" id="whoBtn">名前</button></header>
+  <div id="map"></div>
+  <div class="mlegend" id="legend"></div>
+  <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
+  <div class="panel">
+    <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
+    <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">ここにピンを立てる</button></div>
+  </div>
+
+  <!-- 名前を選ぶ -->
+  <div class="sheet" id="who">
+    <h2>名前を選んでください</h2>
+    <div class="sub">このスマホに覚えます。ピンと訪問の記録、現在地にこの名前が出ます。</div>
+    <label>名前</label>
+    <div class="names" id="names"></div>
+    <label>一覧にないとき</label>
+    <input id="nameIn" placeholder="名前を入れる">
+    <div class="actions"><button class="cancel" id="whoCancel">戻る</button><button class="ok" id="whoOk">決める</button></div>
+  </div>
+
+  <!-- ピンを立てる／訪問を記録 -->
+  <div class="sheet" id="form">
+    <h2 id="formTitle">ピンを立てる</h2>
+    <div class="sub" id="formSub"></div>
+    <label>ステータス</label>
+    <div class="stats" id="stats"></div>
+    <label>メモ</label>
+    <textarea id="memo" rows="3" placeholder="お客様の様子、次に話すことなど"></textarea>
+    <label>写真</label>
+    <input type="file" id="photoIn" accept="image/*" capture="environment">
+    <div class="photo" id="photoPrev"></div>
+    <div class="actions"><button class="cancel" id="formCancel">やめる</button><button class="ok" id="formOk">保存</button></div>
+  </div>
+
+  <!-- ピンの訪問履歴 -->
+  <div class="sheet" id="view">
+    <h2 id="viewTitle"></h2>
+    <div class="sub" id="viewSub"></div>
+    <div class="actions"><button class="cancel" id="viewClose">閉じる</button><button class="ok" id="visitBtn">訪問を記録</button></div>
+    <div id="visits"></div>
+  </div>
+
+  <div id="overlay"><div class="spinner"></div><span id="overlayText">保存中…</span></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const run = (fn, ...a) => new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(ng)[fn](...a));
+  const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+                  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } } };
+  const COLORS = { '未訪問': '#9aa3b2', '不在': '#f1c40f', '商談中': '#2a56a8', '再訪問': '#e67e22', '成約': '#27ae60', 'NG': '#c0392b' };
+  const SEND_MS = 60000;
+
+  let me = store.get('mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
+  let queue = store.get('mQueue', []), lastSent = 0, wake = null, follow = true;
+  let form = null; // { mode: 'pin'|'visit', pin, status, photo }
+
+  // ===== 地図（国土地理院の淡色地図。無料・会社での利用も可） =====
+  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([35.68, 139.76], 15);
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { maxZoom: 18,
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>' }).addTo(map);
+  const pinLayer = L.layerGroup().addTo(map), peopleLayer = L.layerGroup().addTo(map);
+  const meDot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: '#2a56a8', fillOpacity: 1 });
+  const meAcc = L.circle([0, 0], { radius: 1, color: '#2a56a8', weight: 1, fillOpacity: .1 });
+  map.on('dragstart', () => { follow = false; });
+
+  function layout() {
+    const top = $('bar').getBoundingClientRect().bottom;
+    $('map').style.top = top + 'px';
+    $('legend').style.top = (top + 10) + 'px';
+    $('meBtn').style.top = (top + 10) + 'px';
+  }
+  window.addEventListener('resize', layout);
+
+  $('legend').innerHTML = statuses.map(s => `<span><i style="background:${COLORS[s]}"></i>${s}</span>`).join('');
+
+  // ===== 自分の位置（画面を開いている間ずっと見る。送るのは出勤中だけ） =====
+  function watch() {
+    if (!navigator.geolocation) { setState('このスマホでは位置情報が使えません'); return; }
+    navigator.geolocation.watchPosition(p => {
+      const first = !pos;
+      pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy };
+      meDot.setLatLng([pos.lat, pos.lng]).addTo(map);
+      meAcc.setLatLng([pos.lat, pos.lng]).setRadius(pos.acc).addTo(map);
+      if (first || follow) map.setView([pos.lat, pos.lng], first ? 16 : map.getZoom());
+      if (on && Date.now() - lastSent >= SEND_MS) tick();
+      setState();
+    }, e => setState(e.code === 1 ? '位置情報が許可されていません（設定 → Safari（またはChrome）→ 位置情報 → 許可）' : '位置を取得できません'),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  }
+  $('meBtn').onclick = () => { follow = true; if (pos) map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 16)); };
+
+  // ===== 1分ごと：位置を送って、ピンとみんなの位置をもらう =====
+  function tick() {
+    if (!me) return;
+    lastSent = Date.now();
+    run('mPing', me, on && pos ? pos : null, ver).then(show).catch(e => setState('通信できません：' + e.message));
+    flush();
+  }
+  setInterval(tick, SEND_MS);
+
+  function show(d) {
+    on = d.on;
+    if (d.pins) { pins = d.pins; ver = d.ver; drawPins(); }
+    peopleLayer.clearLayers();
+    d.people.filter(p => p.name !== me).forEach(p => {
+      const icon = L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 34],
+        html: `<div class="person${p.live ? '' : ' old'}" style="transform:translateX(-50%)"><b>${esc(p.name)} ${ago(p.at)}</b><i></i></div>` });
+      L.marker([p.lat, p.lng], { icon, zIndexOffset: 1000 }).addTo(peopleLayer);
+    });
+    $('clockBtn').textContent = on ? '退勤' : '出勤';
+    $('clockBtn').classList.toggle('on', on);
+    keepAwake();
+    setState();
+  }
+
+  function drawPins() {
+    pinLayer.clearLayers();
+    const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: 1 }, q.arg));
+    pins.concat(waiting).forEach(p => {
+      const st = latestStatus(p);
+      L.circleMarker([p.lat, p.lng], { radius: 11, weight: 3, color: '#fff', fillColor: COLORS[st] || '#9aa3b2', fillOpacity: 1,
+        dashArray: p.wait ? '4 3' : null }).on('click', () => openView(p)).addTo(pinLayer);
+    });
+  }
+
+  // 未送信の訪問があれば、そのステータスを優先して色を付ける
+  function latestStatus(p) {
+    const v = queue.filter(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id).pop();
+    return v ? v.arg.status : p.status;
+  }
+
+  function setState(msg) {
+    $('state').classList.toggle('on', on);
+    const wait = queue.length ? `　未送信 ${queue.length}件` : '';
+    $('stateText').textContent = msg || (!me ? '右上で名前を選んでください' : on
+      ? `出勤中・位置を共有しています（画面を開いたままにしてください）${wait}`
+      : `退勤中（位置は共有していません）${wait}`);
+  }
+
+  // ===== 出勤・退勤 =====
+  $('clockBtn').onclick = () => {
+    if (!me) return openWho();
+    if (on && !confirm('退勤しますか？位置の共有が止まります')) return;
+    busy(true, on ? '退勤中…' : '出勤中…');
+    run('mClock', me, !on, pos).then(d => { busy(false); show(d); lastSent = Date.now(); })
+      .catch(e => { busy(false); alert(e.message); });
+  };
+
+  // 出勤中は画面が暗くならないようにする（画面ロックで位置の送信が止まるため。対応していないスマホでは何もしない）
+  async function keepAwake() {
+    try {
+      if (on && !wake && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+      if (!on && wake) { wake.release(); wake = null; }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); tick(); } });
+
+  // ===== 名前 =====
+  let names = [];
+  function openWho() {
+    $('names').innerHTML = names.map(n => `<button>${esc(n)}</button>`).join('');
+    [...$('names').children].forEach(b => b.onclick = () => setMe(b.textContent));
+    $('nameIn').value = '';
+    $('who').classList.add('open');
+  }
+  function setMe(n) {
+    n = n.trim();
+    if (!n) return;
+    if (on && n !== me) return alert('名前を変えるときは、先に退勤してください');
+    me = n; store.set('mName', n);
+    $('whoBtn').textContent = n;
+    $('who').classList.remove('open');
+    ver = ''; tick();
+  }
+  $('whoBtn').onclick = openWho;
+  $('whoOk').onclick = () => setMe($('nameIn').value);
+  $('whoCancel').onclick = () => $('who').classList.remove('open');
+
+  // ===== ピンを立てる・訪問を記録 =====
+  $('pinBtn').onclick = () => {
+    if (!me) return openWho();
+    if (!pos) return alert('位置を取得しています。少し待ってからもう一度押してください');
+    if (pos.acc > 100 && !confirm(`位置のずれが大きいです（約${Math.round(pos.acc)}m）。このまま立てますか？`)) return;
+    openForm({ mode: 'pin', lat: pos.lat, lng: pos.lng });
+  };
+  $('visitBtn').onclick = () => openForm({ mode: 'visit', pin: form.pin });
+
+  function openForm(f) {
+    form = Object.assign({ status: '', photo: '' }, f);
+    $('formTitle').textContent = f.mode === 'pin' ? 'ピンを立てる' : '訪問を記録';
+    $('formSub').textContent = f.mode === 'pin' ? `今いる場所（誤差 約${Math.round(pos.acc)}m）に ${me} で立てます` : (f.pin.address || '') + `　訪問者：${me}`;
+    $('stats').innerHTML = statuses.map(s => `<button style="background:${COLORS[s]}" class="${s === '不在' ? 'light' : ''}">${s}</button>`).join('');
+    [...$('stats').children].forEach(b => b.onclick = () => {
+      form.status = b.textContent;
+      [...$('stats').children].forEach(x => x.classList.toggle('on', x === b));
+    });
+    $('memo').value = ''; $('photoIn').value = ''; $('photoPrev').innerHTML = '';
+    $('view').classList.remove('open');
+    $('form').classList.add('open');
+  }
+  $('formCancel').onclick = () => $('form').classList.remove('open');
+
+  // 写真は長い辺 1280px の JPEG に縮めてから送る
+  $('photoIn').onchange = () => {
+    const file = $('photoIn').files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', .7);
+      form.photo = url.split(',')[1];
+      $('photoPrev').innerHTML = `<img src="${url}">`;
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  };
+
+  $('formOk').onclick = () => {
+    if (!form.status) return alert('ステータスを選んでください');
+    const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+    const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts };
+    if (form.mode === 'pin') queue.push({ fn: 'mAddPin', arg: Object.assign({ id, lat: form.lat, lng: form.lng }, base) });
+    else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id }, base) });
+    saveQueue();
+    $('form').classList.remove('open');
+    drawPins(); setState();
+    flush();
+  };
+
+  // 送れなかった記録はスマホに残して、電波が戻ったら送る（20秒ごとに確認）
+  let sending = false;
+  function flush() {
+    if (sending || !queue.length) return;
+    sending = true;
+    const q = queue[0];
+    run(q.fn, q.arg).then(d => {
+      queue.shift(); saveQueue(); sending = false;
+      ver = ''; show(d); // 送った記録の分を地図に出す
+      if (queue.length) flush(); else drawPins();
+    }).catch(e => {
+      sending = false; setState();
+      if (!/通信できません/.test(e.message)) { // 送っても入らない記録（ピンが消された等）は捨てる
+        queue.shift(); saveQueue(); drawPins(); alert('保存できませんでした：' + e.message);
+      }
+    });
+  }
+  setInterval(flush, 20000);
+  window.addEventListener('online', flush);
+  function saveQueue() {
+    if (!store.set('mQueue', queue)) store.set('mQueue', queue.map(q => Object.assign({}, q, { arg: Object.assign({}, q.arg, { photo: '' }) })));
+  }
+
+  // ===== ピンの訪問履歴 =====
+  function openView(p) {
+    form = { pin: p };
+    $('viewTitle').textContent = p.address || 'ピン';
+    $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　訪問 ${p.count || 1}回`;
+    const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
+      .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
+    const draw = list => {
+      $('visits').innerHTML = list.map(v => `<div class="visit"><div class="top"><span><b>${esc(v.by)}</b>　${fmt(v.at)}${v.wait ? '（未送信）' : ''}</span>
+        <span class="badge" style="background:${COLORS[v.status] || '#9aa3b2'}${v.status === '不在' ? ';color:#18202e' : ''}">${esc(v.status)}</span></div>
+        ${v.memo ? `<p>${esc(v.memo)}</p>` : ''}
+        ${v.photo ? `<a href="https://drive.google.com/thumbnail?id=${v.photo}&sz=w2000" target="_blank"><img src="https://drive.google.com/thumbnail?id=${v.photo}&sz=w800"></a>` : ''}</div>`).join('');
+    };
+    draw(mine);
+    $('view').classList.add('open');
+    if (!p.wait) run('mVisits', p.id).then(v => draw(mine.concat(v))).catch(e => { $('visits').innerHTML += `<div class="sub">履歴を読めません：${esc(e.message)}</div>`; });
+  }
+  $('viewClose').onclick = () => $('view').classList.remove('open');
+
+  // ===== 共通 =====
+  function busy(b, text) { if (text) $('overlayText').textContent = text; document.body.classList.toggle('busy', b); }
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+  function fmt(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; }
+  function ago(t) { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? '今' : m < 60 ? m + '分前' : fmt(t); }
+
+  layout();
+  $('whoBtn').textContent = me || '名前';
+  run('mConfig').then(c => {
+    names = c.names; statuses = c.statuses;
+    if (!me) openWho();
+    tick();
+  }).catch(e => setState('エラー：' + e.message));
+  watch();
+</script>
+</body>
+</html>
