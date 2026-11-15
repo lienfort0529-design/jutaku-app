@@ -30,9 +30,13 @@
   .state.on i { background: #27ae60; box-shadow: 0 0 0 4px rgba(39,174,96,.2); }
   .row { display: flex; gap: 8px; }
   .row button { flex: 1; padding: 14px 0; font-size: 16px; font-weight: 600; border-radius: 12px; border: 0; }
-  #clockBtn { flex: .8; background: #eef2f9; color: #18202e; }
+  #clockBtn { flex: .7; background: #eef2f9; color: #18202e; }
   #clockBtn.on { background: #fdecea; color: #c0392b; }
   #pinBtn { background: #2a56a8; color: #fff; }
+  #placeBtn { background: #fff; color: #2a56a8; border: 2px solid #2a56a8 !important; }
+  #placeBtn.on { background: #e67e22; color: #fff; border-color: #e67e22 !important; }
+  .panel.placing { box-shadow: 0 0 0 3px #e67e22, 0 4px 16px rgba(24,32,46,.18); }
+  .del { width: 100%; margin-top: 4px; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #c0392b; background: #fff; color: #c0392b; }
   .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
          box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
   #layerBtn { font-size: 13px; font-weight: 600; color: #18202e; }
@@ -125,9 +129,9 @@
   <div class="mlegend" id="legend"></div>
   <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
   <button class="fab" id="layerBtn">写真</button>
-  <div class="panel">
+  <div class="panel" id="panel">
     <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
-    <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">ここにピンを立てる</button></div>
+    <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">今ここにピン</button><button id="placeBtn">地図に置く</button></div>
   </div>
 
   <!-- 名前を選ぶ -->
@@ -161,6 +165,7 @@
     <div class="sub" id="viewSub"></div>
     <div class="actions"><button class="cancel" id="viewClose">閉じる</button><button class="ok" id="visitBtn">訪問を記録</button></div>
     <div id="visits"></div>
+    <button class="del" id="delBtn">このピンを消す（置き間違い）</button>
   </div>
 
   <div id="overlay"><div class="spinner"></div><span id="overlayText">保存中…</span></div>
@@ -176,6 +181,7 @@
   let me = store.get('mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
   let queue = store.get('mQueue', []), lastSent = 0, wake = null, follow = true;
   let form = null; // { mode: 'pin'|'visit', pin, status, photo }
+  let placing = false; // 「地図に置く」：地図を押した場所に未訪問ピンを置く（前日に回るエリアを決めるとき）
 
   // ===== 地図（国土地理院の淡色地図と航空写真。無料・会社での利用も可）。右上のボタンで切り替え、スマホが覚える =====
   const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([35.68, 139.76], 15);
@@ -251,11 +257,12 @@
 
   function drawPins() {
     pinLayer.clearLayers();
-    const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: 1 }, q.arg));
-    pins.concat(waiting).forEach(p => {
+    const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: q.arg.plan ? 0 : 1 }, q.arg));
+    const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg);
+    pins.concat(waiting).filter(p => !gone.includes(p.id)).forEach(p => {
       const st = latestStatus(p);
       L.circleMarker([p.lat, p.lng], { radius: 11, weight: 3, color: '#fff', fillColor: COLORS[st] || '#9aa3b2', fillOpacity: 1,
-        dashArray: p.wait ? '4 3' : null }).on('click', () => openView(p)).addTo(pinLayer);
+        dashArray: p.wait ? '4 3' : null, bubblingMouseEvents: false }).on('click', () => openView(p)).addTo(pinLayer);
     });
   }
 
@@ -268,7 +275,10 @@
   function setState(msg) {
     $('state').classList.toggle('on', on);
     const wait = queue.length ? `　未送信 ${queue.length}件` : '';
-    $('stateText').textContent = msg || (!me ? '右上で名前を選んでください' : on
+    $('panel').classList.toggle('placing', placing);
+    $('stateText').textContent = msg || (!me ? '右上で名前を選んでください' : placing
+      ? `地図を押した場所に「未訪問」ピンを置きます。終わったら「置き終わる」${wait}`
+      : on
       ? `出勤中・位置を共有しています（画面を開いたままにしてください）${wait}`
       : `退勤中（位置は共有していません）${wait}`);
   }
@@ -322,7 +332,33 @@
     if (pos.acc > 100 && !confirm(`位置のずれが大きいです（約${Math.round(pos.acc)}m）。このまま立てますか？`)) return;
     openForm({ mode: 'pin', lat: pos.lat, lng: pos.lng });
   };
+  $('placeBtn').onclick = () => {
+    if (!me) return openWho();
+    placing = !placing;
+    $('placeBtn').textContent = placing ? '置き終わる' : '地図に置く';
+    $('placeBtn').classList.toggle('on', placing);
+    follow = false;
+    setState();
+  };
+  map.on('click', e => {
+    if (!placing) return;
+    const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+    queue.push({ fn: 'mAddPin', arg: { id, lat: e.latlng.lat, lng: e.latlng.lng, name: me, status: '未訪問', memo: '', photo: '', ts, plan: true } });
+    saveQueue(); drawPins(); setState(); flush();
+  });
+
   $('visitBtn').onclick = () => openForm({ mode: 'visit', pin: form.pin });
+
+  // 置き間違いのピンを消す。未送信ならスマホから消すだけ
+  $('delBtn').onclick = () => {
+    const p = form.pin;
+    if (!confirm('このピンを消しますか？')) return;
+    $('view').classList.remove('open');
+    const i = queue.findIndex(q => q.fn === 'mAddPin' && q.arg.id === p.id);
+    if (i >= 0 && !(sending && i === 0)) { queue.splice(i, 1); saveQueue(); drawPins(); setState(); return; }
+    queue.push({ fn: 'mDeletePin', arg: p.id });
+    saveQueue(); pins = pins.filter(x => x.id !== p.id); drawPins(); setState(); flush();
+  };
 
   function openForm(f) {
     form = Object.assign({ status: '', photo: '' }, f);
@@ -374,7 +410,7 @@
     if (sending || !queue.length) return;
     sending = true;
     const q = queue[0];
-    run(q.fn, q.arg).then(d => {
+    run(q.fn, q.arg, me).then(d => {
       queue.shift(); saveQueue(); sending = false;
       ver = ''; show(d); // 送った記録の分を地図に出す
       if (queue.length) flush(); else drawPins();
@@ -395,8 +431,10 @@
   function openView(p) {
     form = { pin: p };
     $('viewTitle').textContent = p.address || 'ピン';
-    $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　訪問 ${p.count || 1}回`;
-    const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
+    const visited = Number(p.count) > 0 || queue.some(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id);
+    $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　` + (Number(p.count) > 0 ? `訪問 ${p.count}回` : 'まだ訪問していません');
+    $('delBtn').style.display = visited ? 'none' : '';
+    const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id && !q.arg.plan) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
       .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
     const draw = list => {
       $('visits').innerHTML = list.map(v => `<div class="visit"><div class="top"><span><b>${esc(v.by)}</b>　${fmt(v.at)}${v.wait ? '（未送信）' : ''}</span>
