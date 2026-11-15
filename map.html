@@ -35,6 +35,7 @@
   #pinBtn { background: #2a56a8; color: #fff; }
   .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
          box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
+  #layerBtn { font-size: 13px; font-weight: 600; color: #18202e; }
   .mlegend { position: fixed; left: 10px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 8px; max-width: 220px; padding: 6px 9px;
             background: rgba(255,255,255,.92); border-radius: 10px; font-size: 11px; color: #4b5567; }
   .mlegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
@@ -123,6 +124,7 @@
   <div id="map"></div>
   <div class="mlegend" id="legend"></div>
   <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
+  <button class="fab" id="layerBtn">写真</button>
   <div class="panel">
     <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
     <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">ここにピンを立てる</button></div>
@@ -175,10 +177,22 @@
   let queue = store.get('mQueue', []), lastSent = 0, wake = null, follow = true;
   let form = null; // { mode: 'pin'|'visit', pin, status, photo }
 
-  // ===== 地図（国土地理院の淡色地図。無料・会社での利用も可） =====
+  // ===== 地図（国土地理院の淡色地図と航空写真。無料・会社での利用も可）。右上のボタンで切り替え、スマホが覚える =====
   const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([35.68, 139.76], 15);
-  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { maxZoom: 18,
-    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>' }).addTo(map);
+  const gsi = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
+  const layers = {
+    map: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: gsi }),
+    photo: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 19, maxNativeZoom: 18, attribution: gsi }),
+  };
+  let layer = store.get('mLayer', 'map') === 'photo' ? 'photo' : 'map';
+  function setLayer(k) {
+    layers[layer].remove();
+    layer = k; store.set('mLayer', k);
+    layers[k].addTo(map);
+    $('layerBtn').textContent = k === 'photo' ? '地図' : '写真';
+  }
+  $('layerBtn').onclick = () => setLayer(layer === 'photo' ? 'map' : 'photo');
+  setLayer(layer);
   const pinLayer = L.layerGroup().addTo(map), peopleLayer = L.layerGroup().addTo(map);
   const meDot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: '#2a56a8', fillOpacity: 1 });
   const meAcc = L.circle([0, 0], { radius: 1, color: '#2a56a8', weight: 1, fillOpacity: .1 });
@@ -189,6 +203,7 @@
     $('map').style.top = top + 'px';
     $('legend').style.top = (top + 10) + 'px';
     $('meBtn').style.top = (top + 10) + 'px';
+    $('layerBtn').style.top = (top + 64) + 'px';
   }
   window.addEventListener('resize', layout);
 
