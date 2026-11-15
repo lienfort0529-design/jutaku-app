@@ -96,6 +96,10 @@
   td.s.mine { background: #8e44ad; } td.s.block { background: #e1e4e8; color: #9aa0a6; }
   .st.shoho { background: #8e44ad; color: #fff; }
   .mon .e.sh b { color: #8e44ad; }
+  .shd td { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 9px 6px; font-size: 14px; }
+  .shd td.c { text-align: center; font-weight: 700; color: #fff; }
+  .shd td.c.free { background: #27ae60; } .shd td.c.full { background: #b8bcc2; }
+  .shd td.x { color: #888; font-size: 13px; }
   .subh { margin: 16px 0 6px; font-weight: 700; color: #8e44ad; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
@@ -162,8 +166,7 @@
     <table><thead id="gridHead"></thead><tbody id="gridBody"></tbody></table>
     <div class="legend" id="legShodan"><span><i style="background:#27ae60"></i>空きあり</span><span><i style="background:#f1c40f"></i>残り1</span>
       <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>入れすぎ</span></div>
-    <div class="legend hide" id="legShoho"><span><i style="background:#27ae60"></i>空き</span><span><i style="background:#8e44ad"></i>初訪あり</span>
-      <span><i style="background:#e1e4e8"></i>× 商談が満枠（前後3時間）</span></div>
+    <div class="legend hide" id="legShoho"><span>1日9件まで・30分刻み</span><span>× は商談が満枠の前後3時間</span></div>
     <div class="note" style="text-align:center">マスを押すと予定の確認・追加、日付を押すと休み・時間帯の変更</div>
   </div>
 
@@ -185,8 +188,9 @@
     <h2 id="formTitle"></h2>
     <div class="grid2">
       <div><label>日付</label><input type="date" id="fDate"></div>
-      <div><label>時間</label><select id="fTime"></select></div>
+      <div><label id="fTimeL">時間（枠）</label><select id="fTime"></select></div>
     </div>
+    <div id="fStartBox"><label>開始時間（枠からずらすとき）</label><select id="fStart"></select></div>
     <label>お客様名 <span class="req">*</span></label><input id="fCustomer" placeholder="例：山田太郎様">
     <label>住所 <span class="req nr">*</span></label><input id="fAddress" placeholder="例：福岡市中央区天神1-1-1">
     <label>GoogleマップのURL <span class="req nr">*</span></label><input id="fMap" inputmode="url" placeholder="https://maps.app.goo.gl/…">
@@ -262,12 +266,25 @@
   function dayOf(s) { return data.days[s] || { times: ['10:00', '14:00', '18:00'], off: [] }; }
   function cap(s) { return cfg.closers.filter(n => !dayOf(s).off.includes(n)).length; }
   function inSlot(s, t) { return data.appts.filter(a => a.date === s && a.time === t); }
-  function inShoho(s, t) { return data.shoho.filter(a => a.date === s && a.time === t); }
   const mins = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   // 初訪の時間 t の前後3時間（ちょうども含む）に満枠の商談があれば、その時間（Code.gs の yShohoBlock_ と同じ）
   function blockedBy(s, t) {
     const c = cap(s);
     return dayOf(s).times.find(x => { const n = inSlot(s, x).length; return Math.abs(mins(x) - mins(t)) <= cfg.shohoGap && n > 0 && n >= c; }) || '';
+  }
+  const hm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  const startOf = a => a.start || a.time;
+  const byStart = (a, b) => startOf(a).localeCompare(startOf(b));
+  function timeText(a) { return a.start ? a.start + '（' + Number(a.time.slice(0, 2)) + '時枠）' : a.time; }
+  function inShohoDay(s) { return data.shoho.filter(a => a.date === s).sort(byStart); }
+  // 初訪を入れられない時間帯（満枠の商談の前後3時間）を「11:00〜17:00」のように
+  function blockedText(s) {
+    const out = [];
+    let run = null;
+    cfg.shohoTimes.forEach(t => {
+      if (blockedBy(s, t)) { if (run) run[1] = t; else out.push(run = [t, t]); } else run = null;
+    });
+    return out.map(r => r[0] === r[1] ? r[0] : r[0] + '〜' + r[1]).join('、');
   }
   function mapUrl(a) { return a.map || (a.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a.address) : ''); }
 
@@ -333,25 +350,19 @@
     });
   }
 
-  // 初訪の枠表：10〜18時の9枠、1枠1件
+  // 初訪の枠表：日ごとに件数（9件まで）と、入れられない時間
   function renderShohoGrid() {
     const days = [...Array(7)].map((_, i) => addDays(start, i));
-    $('gridHead').innerHTML = '<tr><th style="width:24%"></th>' + cfg.shohoTimes.map(t => '<th>' + Number(t.slice(0, 2)) + '</th>').join('') + '</tr>';
+    $('gridHead').innerHTML = '<tr><th style="width:26%"></th><th style="width:22%">初訪</th><th>× 入れられない時間</th></tr>';
     const body = $('gridBody');
     body.innerHTML = '';
     days.forEach(s => {
-      const tr = document.createElement('tr'), td = document.createElement('td');
-      td.className = 'd ' + wdClass(s) + (s === cfg.today ? ' today' : '');
-      td.innerHTML = label(s) + '<small>空き ' + cfg.shohoTimes.filter(t => !inShoho(s, t).length && !blockedBy(s, t)).length + '</small>';
-      td.onclick = () => openDay(s);
-      tr.appendChild(td);
-      cfg.shohoTimes.forEach(t => {
-        const cell = document.createElement('td'), n = inShoho(s, t).length;
-        cell.className = 's ' + (n ? 'mine' : blockedBy(s, t) ? 'block' : 'free');
-        cell.textContent = n ? '●' : blockedBy(s, t) ? '×' : '○';
-        cell.onclick = () => openSlot(s, t, 'shoho');
-        tr.appendChild(cell);
-      });
+      const tr = document.createElement('tr'), n = inShohoDay(s).length, b = blockedText(s);
+      tr.className = 'shd';
+      tr.innerHTML = '<td class="d ' + wdClass(s) + (s === cfg.today ? ' today' : '') + '">' + label(s) + '</td>' +
+        '<td class="c ' + (n >= cfg.shohoMax ? 'full' : 'free') + '">' + n + '/' + cfg.shohoMax + '</td><td class="x"></td>';
+      tr.querySelector('.x').textContent = b || 'なし';
+      tr.onclick = () => openSlot(s, '', 'shoho');
       body.appendChild(tr);
     });
   }
@@ -365,7 +376,7 @@
     let tr;
     for (let s = from; s <= to; s = addDays(s, 1)) {
       if (parse(s).getDay() === 0) { tr = document.createElement('tr'); body.appendChild(tr); }
-      const td = document.createElement('td'), list = data.appts.concat(data.shoho).filter(a => a.date === s).sort((a, b) => a.time.localeCompare(b.time));
+      const td = document.createElement('td'), list = data.appts.concat(data.shoho).filter(a => a.date === s).sort(byStart);
       td.className = (parse(s).getMonth() !== d0.getMonth() ? 'out' : '') + (s === cfg.today ? ' today' : '');
       td.innerHTML = '<div class="n ' + wdClass(s) + '">' + parse(s).getDate() + '</div>';
       const vis = list.length > 3 ? list.slice(0, 2) : list;
@@ -373,7 +384,7 @@
         const e = document.createElement('div');
         e.className = 'e' + (a.kind === 'shoho' ? ' sh' : '');
         e.innerHTML = '<b></b>';
-        e.querySelector('b').textContent = a.time.replace(/^0?(\d+):00$/, '$1') + (a.kind === 'shoho' ? '初' : '');
+        e.querySelector('b').textContent = startOf(a).replace(/^0?(\d+):00$/, '$1') + (a.kind === 'shoho' ? '初' : '');
         e.append(String(a.customer).replace(/\s*様$/, '')); // 狭いので「様」は省く
         if (a.result) e.style.color = COLORS[a.result]; // 結果が入ったら結果の色
         td.appendChild(e);
@@ -390,7 +401,7 @@
     d.className = 'card';
     d.innerHTML = '<div class="top"><b></b><span class="st"></span></div><small class="ad"></small><small class="who"></small><small class="memo"></small>' +
       '<div class="btns"><a class="map" target="_blank">地図</a><button class="rb">結果</button><button class="eb">編集</button></div>';
-    d.querySelector('b').textContent = (withDate ? label(a.date) + ' ' : '') + a.time + '　' + a.customer;
+    d.querySelector('b').textContent = (withDate ? label(a.date) + ' ' : '') + timeText(a) + '　' + a.customer;
     const st = d.querySelector('.st');
     st.textContent = a.kind === 'shoho' ? '催事 初訪' : a.result || '結果まだ';
     if (a.kind === 'shoho') { st.classList.add('shoho'); d.querySelector('.rb').remove(); }
@@ -415,7 +426,7 @@
 
   function renderList() {
     $('listDay').value = listDay;
-    const box = $('listBox'), list = data.appts.filter(a => a.date === listDay).sort((a, b) => a.time.localeCompare(b.time));
+    const box = $('listBox'), list = data.appts.filter(a => a.date === listDay).sort(byStart);
     box.innerHTML = '';
     const c = cap(listDay);
     const head = document.createElement('div');
@@ -429,11 +440,11 @@
     add.className = 'add'; add.textContent = '＋ この日に予定を入れる';
     add.onclick = () => openForm(null, listDay, freeTime(listDay));
     box.appendChild(add);
-    const sh = data.shoho.filter(a => a.date === listDay).sort((a, b) => a.time.localeCompare(b.time));
-    const free = cfg.shohoTimes.filter(t => !inShoho(listDay, t).length && !blockedBy(listDay, t));
-    box.insertAdjacentHTML('beforeend', '<div class="subh">催事 初訪（' + sh.length + '件 ／ 空き ' + free.length + '）</div>');
+    const sh = inShohoDay(listDay), free = cfg.shohoTimes.filter(t => !blockedBy(listDay, t)), b = blockedText(listDay);
+    box.insertAdjacentHTML('beforeend', '<div class="subh">催事 初訪（' + sh.length + '/' + cfg.shohoMax + '件）</div>');
+    if (b) box.insertAdjacentHTML('beforeend', '<div class="note" style="margin:0 0 8px">× ' + b + ' は商談が満枠なので入れられません</div>');
     sh.forEach(a => box.appendChild(card(a)));
-    if (free.length) {
+    if (free.length && sh.length < cfg.shohoMax) {
       const b = document.createElement('button');
       b.className = 'add'; b.style.borderColor = b.style.color = '#8e44ad'; b.textContent = '＋ この日に初訪を入れる';
       b.onclick = () => openForm(null, listDay, free[0], 'shoho');
@@ -460,13 +471,15 @@
   }
 
   function renderShohoSlot() {
-    const { date, time } = current, list = inShoho(date, time), b = blockedBy(date, time);
-    $('slotTitle').textContent = label(date) + ' ' + time + ' 催事 初訪';
+    const { date } = current, list = inShohoDay(date), b = blockedText(date), free = cfg.shohoTimes.filter(t => !blockedBy(date, t));
+    $('slotTitle').textContent = label(date) + ' 催事 初訪（' + list.length + '/' + cfg.shohoMax + '）';
     const box = $('slotBox');
     box.innerHTML = '';
+    if (b) box.insertAdjacentHTML('beforeend', '<div class="note" style="margin:0 0 8px">× ' + b + ' は商談が満枠なので入れられません</div>');
     list.forEach(a => box.appendChild(card(a)));
-    if (list.length) return;
-    if (b) { box.insertAdjacentHTML('beforeend', '<p style="text-align:center;color:#888">' + b + ' の商談が満枠なので、前後3時間は初訪を入れられません</p>'); return; }
+    if (list.length >= cfg.shohoMax) { box.insertAdjacentHTML('beforeend', '<p style="text-align:center;color:#888">この日の初訪は埋まっています</p>'); return; }
+    if (!free.length) return;
+    const time = free[0];
     const add = document.createElement('button');
     add.className = 'add'; add.style.borderColor = add.style.color = '#8e44ad'; add.textContent = '＋ 初訪を入れる';
     add.onclick = () => openForm(null, date, time, 'shoho');
@@ -496,9 +509,9 @@
     const s = $('fDate').value, keep = $('fTime').value;
     $('fTime').innerHTML = '';
     if (formKind === 'shoho') cfg.shohoTimes.forEach(t => {
-      const taken = inShoho(s, t).some(a => !editing || a.id !== editing.id), b = blockedBy(s, t);
-      const o = new Option(t + (taken ? '（埋まり）' : b ? '（× ' + b + ' 商談満枠）' : '（空き）'), t);
-      o.disabled = (taken || !!b) && !(editing && editing.date === s && editing.time === t);
+      const b = blockedBy(s, t);
+      const o = new Option(t + (b ? '（× ' + b + ' 商談満枠）' : ''), t);
+      o.disabled = !!b && !(editing && editing.date === s && editing.time === t);
       $('fTime').add(o);
     });
     else dayOf(s).times.forEach(t => $('fTime').add(new Option(t + '（' + inSlot(s, t).filter(a => !editing || a.id !== editing.id).length + '/' + cap(s) + '）', t)));
@@ -508,6 +521,15 @@
     $('fCl').add(new Option('未定', ''));
     cfg.closers.filter(n => !off.includes(n) || n === cl).forEach(n => $('fCl').add(new Option(n + (off.includes(n) ? '（休み）' : ''), n)));
     $('fCl').value = cl;
+  }
+
+  // 開始時間：枠の前後1時間、30分刻み
+  function fillStart(v) {
+    const t = $('fTime').value;
+    $('fStart').innerHTML = '';
+    if (!t) return;
+    for (let m = mins(t) - 60; m <= mins(t) + 60; m += 30) $('fStart').add(new Option(hm(m) + (m === mins(t) ? '（枠どおり）' : ''), hm(m)));
+    $('fStart').value = v && [...$('fStart').options].some(o => o.value === v) ? v : t;
   }
 
   // ===== AP詳細（項目は Code.gs の Y_FIELDS） =====
@@ -568,6 +590,9 @@
     $('fTime').innerHTML = '';
     fillTimes();
     $('fTime').value = a ? a.time : time;
+    $('fTimeL').textContent = formKind === 'shoho' ? '時間' : '時間（枠）';
+    $('fStartBox').classList.toggle('hide', formKind === 'shoho');
+    fillStart(a && a.start);
     $('fCustomer').value = a ? a.customer : '';
     $('fAddress').value = a ? a.address : '';
     $('fMap').value = a ? a.map : '';
@@ -583,7 +608,7 @@
   function saveForm() {
     const a = { id: editing ? editing.id : '', date: $('fDate').value, time: $('fTime').value, customer: $('fCustomer').value.trim(),
       address: $('fAddress').value.trim(), map: $('fMap').value.trim(), product: checked('fProduct'), ap: getAp('fAp', 'fApOther'),
-      cl: $('fCl').value, memo: $('fMemo').value.trim(), detail: getDetail(), kind: formKind };
+      cl: $('fCl').value, memo: $('fMemo').value.trim(), detail: getDetail(), kind: formKind, start: formKind === 'shoho' ? '' : $('fStart').value };
     if (!a.date || !a.time || !a.customer) { alert('日付・時間・お客様名を入れてください'); return; }
     if (!editing) { // 必須は新しく入れるときだけ
       const missing = (a.address ? [] : ['住所']).concat(a.map ? [] : ['マップURL'],
@@ -594,7 +619,7 @@
     // 別の週・日に入れたら、その日が見えるようにする
     if (view === 'grid' && (a.date < start || a.date > addDays(start, 6))) start = a.date;
     if (view === 'list') listDay = a.date;
-    call('ySave', [a], '保存中…', () => { $('form').classList.remove('open'); $('msg').textContent = '保存しました：' + (a.kind === 'shoho' ? '初訪 ' : '') + label(a.date) + ' ' + a.time + ' ' + a.customer; });
+    call('ySave', [a], '保存中…', () => { $('form').classList.remove('open'); $('msg').textContent = '保存しました：' + (a.kind === 'shoho' ? '初訪 ' : '') + label(a.date) + ' ' + (a.start || a.time) + ' ' + a.customer; });
   }
   function delForm() {
     if (!confirm(editing.customer + ' の予定を消しますか？' + (editing.result ? '\n（入っている結果「' + editing.result + '」も消えます）' : ''))) return;
@@ -604,7 +629,7 @@
   // ===== 結果 =====
   function openRes(a) {
     editing = a;
-    $('resTitle').textContent = a.time + '　' + a.customer;
+    $('resTitle').textContent = timeText(a) + '　' + a.customer;
     $('resNote').textContent = a.cl ? '担当 ' + a.cl + '（クローザー入力の数字にも入ります）' : '先に「編集」で担当クローザーを入れてください';
     $('resBtns').innerHTML = '';
     cfg.results.forEach(r => {
@@ -701,7 +726,8 @@
   $('prevD').onclick = () => { listDay = addDays(listDay, -1); load(); };
   $('nextD').onclick = () => { listDay = addDays(listDay, 1); load(); };
   $('listDay').onchange = () => { if ($('listDay').value) { listDay = $('listDay').value; load(); } };
-  $('fDate').onchange = fillTimes;
+  $('fDate').onchange = () => { fillTimes(); fillStart($('fStart').value); };
+  $('fTime').onchange = () => fillStart();
   $('fAp').onchange = () => $('fApOther').classList.toggle('hide', $('fAp').value !== OTHER);
   $('sAp').onchange = () => $('sApOther').classList.toggle('hide', $('sAp').value !== OTHER);
   $('closeSlot').onclick = () => $('slot').classList.remove('open');
