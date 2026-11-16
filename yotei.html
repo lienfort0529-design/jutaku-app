@@ -100,6 +100,11 @@
   .shd td.c { text-align: center; font-weight: 700; color: #fff; }
   .shd td.c.free { background: #27ae60; } .shd td.c.full { background: #b8bcc2; }
   .shd td.x { color: #888; font-size: 13px; }
+  .pc { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .pc span { flex: 1; font-size: 14px; font-weight: 700; padding: 6px 10px; border-radius: 8px; color: #fff; }
+  .pc button { padding: 7px 12px; font-size: 14px; font-weight: 600; border-radius: 8px; border: 1px solid #27ae60; background: #fff; color: #27ae60; }
+  .card.pre { border-left: 6px solid #e67e22; } .card.done { border-left: 6px solid #27ae60; }
+  .mon .e i { font-style: normal; }
   .subh { margin: 16px 0 6px; font-weight: 700; color: #8e44ad; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
@@ -157,6 +162,7 @@
   <div id="monthView" class="hide">
     <div class="nav"><button id="prevM">◀</button><div class="mid" id="monthLabel"></div><button id="nextM">▶</button></div>
     <table class="mon"><tbody id="monthBody"></tbody></table>
+    <div class="legend"><span style="color:#e67e22">● 前確前</span><span style="color:#27ae60">● 前確完了</span></div>
     <div class="note" style="text-align:center">日を押すと、その日の予定一覧</div>
   </div>
 
@@ -166,6 +172,7 @@
     <table><thead id="gridHead"></thead><tbody id="gridBody"></tbody></table>
     <div class="legend" id="legShodan"><span><i style="background:#27ae60"></i>空きあり</span><span><i style="background:#f1c40f"></i>残り1</span>
       <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>入れすぎ</span></div>
+    <div class="legend"><span><i style="background:#e67e22"></i>前確前</span><span><i style="background:#27ae60"></i>前確完了</span></div>
     <div class="legend hide" id="legShoho"><span>1日9件まで・30分刻み</span><span>× は商談が満枠の前後3時間</span></div>
     <div class="note" style="text-align:center">マスを押すと予定の確認・追加、日付を押すと休み・時間帯の変更</div>
   </div>
@@ -286,6 +293,13 @@
     });
     return out.map(r => r[0] === r[1] ? r[0] : r[0] + '〜' + r[1]).join('、');
   }
+  // 前確：完了＝緑、まだ＝オレンジ
+  const PC = { pre: '#e67e22', done: '#27ae60' };
+  const pcState = a => a.precheckDone ? 'done' : 'pre';
+  function pcText(v) { // 「2026-11-16 15:00」→「11/16(月) 15:00」（手入力の古い値はそのまま）
+    const m = /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)$/.exec(v || '');
+    return m ? label(m[1]) + ' ' + m[2] : v || '';
+  }
   function mapUrl(a) { return a.map || (a.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a.address) : ''); }
 
   function setBusy(on, text) {
@@ -383,7 +397,8 @@
       vis.forEach(a => {
         const e = document.createElement('div');
         e.className = 'e' + (a.kind === 'shoho' ? ' sh' : '');
-        e.innerHTML = '<b></b>';
+        e.innerHTML = '<i>●</i><b></b>';
+        e.querySelector('i').style.color = PC[pcState(a)];
         e.querySelector('b').textContent = startOf(a).replace(/^0?(\d+):00$/, '$1') + (a.kind === 'shoho' ? '初' : '');
         e.append(String(a.customer).replace(/\s*様$/, '')); // 狭いので「様」は省く
         if (a.result) e.style.color = COLORS[a.result]; // 結果が入ったら結果の色
@@ -409,6 +424,18 @@
     d.querySelector('.ad').textContent = a.address || '住所なし';
     d.querySelector('.who').textContent = (a.product || '商材未定') + ' ／ AP ' + (a.ap || '-') + ' ／ CL ' + (a.cl || '未定');
     d.querySelector('.memo').textContent = a.memo || '';
+    const pc = document.createElement('div'), st2 = pcState(a), when = pcText(a.detail && a.detail.precheck);
+    pc.className = 'pc';
+    pc.innerHTML = '<span></span><button></button>';
+    pc.querySelector('span').style.background = PC[st2];
+    pc.querySelector('span').textContent = st2 === 'done' ? '前確完了' : '前確前' + (when ? '　' + when : '');
+    pc.querySelector('button').textContent = st2 === 'done' ? '戻す' : '前確完了';
+    pc.querySelector('button').onclick = () => {
+      if (st2 === 'done' && !confirm(a.customer + ' の前確完了を戻しますか？')) return;
+      call('yPrecheck', [a.id, st2 !== 'done'], '保存中…');
+    };
+    d.classList.add(st2);
+    d.querySelector('.memo').after(pc);
     const items = cfg.fields.filter(f => a.detail && a.detail[f.key]);
     if (items.length) {
       const det = document.createElement('details'), dl = document.createElement('dl');
@@ -538,7 +565,8 @@
     const d = {};
     cfg.fields.forEach(f => {
       const w = document.querySelector('#fDetail [data-key="' + f.key + '"]');
-      d[f.key] = f.type === 'choice' ? (w.querySelector('.on') || {}).textContent || '' : w.querySelector('input').value.trim();
+      const i = w.querySelector('input');
+      d[f.key] = f.type === 'choice' ? (w.querySelector('.on') || {}).textContent || '' : i.type === 'datetime-local' ? i.value.replace('T', ' ') : i.value.trim();
     });
     cfg.fields.forEach(f => { if (!shown(f, d)) d[f.key] = ''; });
     return d;
@@ -570,10 +598,12 @@
       } else {
         const i = document.createElement('input');
         i.type = f.type === 'date' ? 'date' : 'text';
+        // 前確日時。前に手入力した値（日時の形でない）は消えないよう文字のまま
+        if (f.type === 'datetime' && (!v[f.key] || /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(v[f.key]))) { i.type = 'datetime-local'; i.step = 1800; }
         if (f.type === 'number') i.inputMode = 'numeric';
         if (f.type === 'tel') { i.type = 'tel'; i.inputMode = 'tel'; }
         i.placeholder = f.placeholder || '';
-        i.value = v[f.key] || (!a && f.key === 'apDate' ? cfg.today : '');
+        i.value = (i.type === 'datetime-local' ? (v[f.key] || '').replace(' ', 'T') : v[f.key]) || (!a && f.key === 'apDate' ? cfg.today : '');
         w.appendChild(i);
       }
       box.appendChild(w);
