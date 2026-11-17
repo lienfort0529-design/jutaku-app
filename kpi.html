@@ -139,7 +139,7 @@
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>KPI・ランキング</b></div></header>
   <div class="wrap">
     <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="sales">成約一覧</button>
-      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><button data-v="input" class="ad hide">入力</button></div>
+      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><button data-v="input" class="ad hide">入力</button><button data-v="member" class="ad hide">メンバー</button></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
     <div id="view"></div>
@@ -164,7 +164,7 @@
   const MEDAL = ['🥇', '🥈', '🥉'];
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
 
-  let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null, I = null, iSheet = 'クローザー';
+  let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null, I = null, iSheet = 'クローザー', MB = null, mTable = '叩き';
 
   // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
   function load() {
@@ -177,7 +177,7 @@
       D = r; $('msg').textContent = '';
       store(key, JSON.stringify(r));
       if (store('jAdmin') && !D.admin) { store('jAdmin', null); $('msg').textContent = '管理者の合言葉が違います'; }
-      if (!D.admin && (view === 'list' || view === 'one' || view === 'input')) view = 'rank';
+      if (!D.admin && (view === 'list' || view === 'one' || view === 'input' || view === 'member')) view = 'rank';
       render();
     }).withFailureHandler(e => { document.body.classList.remove('busy'); $('msg').textContent = 'エラー: ' + e.message; })
       .kpiData(store('jAdmin') || '', !!prev);
@@ -187,7 +187,7 @@
     document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
     document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
     $('view').innerHTML = '';
-    ({ rank: renderRank, me: renderMe, sales: renderSales, list: renderList, one: renderOne, input: renderInput })[view]();
+    ({ rank: renderRank, me: renderMe, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
     renderAdmin();
   }
 
@@ -424,6 +424,71 @@
     };
   }
 
+  // ===== メンバー（管理者）：足す・名前を直す・来月から外す =====
+  function loadMember() {
+    MB = null; render();
+    google.script.run.withSuccessHandler(r => { MB = r; if (view === 'member') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).memberData(store('jAdmin') || '');
+  }
+  function memberCall(fn, args, done) {
+    document.body.classList.add('busy');
+    google.script.run.withSuccessHandler(r => {
+      document.body.classList.remove('busy');
+      MB = r; $('msg').textContent = done + (r.fixed ? '（' + r.fixed.join('・') + '）' : '');
+      render();
+    }).withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })[fn](store('jAdmin') || '', ...args);
+  }
+  function renderMember() {
+    if (!MB) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    MB.tables.forEach(t => {
+      const x = document.createElement('button');
+      x.textContent = t.table; x.className = t.table === mTable ? 'on' : '';
+      x.onclick = () => { mTable = t.table; render(); };
+      seg.appendChild(x);
+    });
+    $('view').appendChild(seg);
+    const T = MB.tables.find(t => t.table === mTable), out = MB.pending.filter(p => p.table === mTable);
+    const groups = [...new Set(T.groups.filter(Boolean))];
+    // 足す
+    const a = card('新しい人を足す', T.month + 'の表から');
+    a.insertAdjacentHTML('beforeend', '<div class="row">' + (groups.length ? '<select id="mGroup">' + groups.map(g => '<option>' + esc(g) + '</option>').join('') + '</select>' : '') +
+      '<input id="mName" placeholder="名前" style="flex:1"><button class="cancel" id="mAdd" style="padding:9px 16px;border-radius:10px;border:0;background:#2a56a8;color:#fff;font-weight:600">足す</button></div>');
+    $('view').appendChild(a);
+    $('mAdd').onclick = () => {
+      const n = $('mName').value.trim(), g = $('mGroup') ? $('mGroup').value : '';
+      if (!n) return;
+      if (!confirm(mTable + 'の表に「' + n + '」' + (g ? '（' + g + '）' : '') + 'を足しますか？')) return;
+      memberCall('memberAdd', [mTable, g, n], '足しました：' + n);
+    };
+    // 今のメンバー
+    const c = card('今のメンバー（' + T.names.filter(Boolean).length + '人）', '押すと名前を直す・来月から外す');
+    let last = null;
+    T.names.forEach((n, j) => {
+      if (!n) return;
+      if (T.groups[j] && T.groups[j] !== last) { last = T.groups[j]; c.insertAdjacentHTML('beforeend', '<div class="subh" style="color:#4b5567;margin:12px 0 4px">' + esc(last) + '</div>'); }
+      const o = out.find(p => p.name === n), d = document.createElement('div');
+      d.className = 'sl edit';
+      d.innerHTML = '<div><b></b> ' + (o ? '<span class="st x">' + esc(o.month) + 'から外す</span>' : '') + '</div><div></div>';
+      d.querySelector('b').textContent = n;
+      d.onclick = () => memberMenu(n, !!o);
+      c.appendChild(d);
+    });
+    $('view').appendChild(c);
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を直すと、今月の記録（叩きのログ・商談ログ・売上・商談予定）の名前も直ります。「来月から外す」は月替わりで来月の表から名前が消えます（今月の数字は残ります）。名前を直した人は、叩きカウンター・クローザー入力で名前を選び直してください</div>');
+  }
+  function memberMenu(n, out) {
+    const a = prompt(n + ' さん\n1：名前を直す\n2：' + (out ? '来月から外すのをやめる' : '来月から外す') + '\n番号を入れてください');
+    if (a === '1') {
+      const nn = prompt('新しい名前（今月の記録の名前も直ります）', n);
+      if (nn && nn.trim() && nn.trim() !== n) memberCall('memberRename', [mTable, n, nn.trim()], '名前を直しました：' + n + ' → ' + nn.trim());
+    } else if (a === '2') {
+      if (out) memberCall('memberRemove', [mTable, n, false], n + ' さんを外すのをやめました');
+      else if (confirm(n + ' さんを来月の' + mTable + 'の表から外しますか？（今月はそのまま）')) memberCall('memberRemove', [mTable, n, true], n + ' さんは来月から外れます');
+    }
+  }
+
   // ===== KPI一覧（管理者） =====
   const ROLES = { ct: ['プレイヤー（叩き）', 'ct'], ap: ['アポインター', 'ap'], cl: ['クローザー', 'cl'], wk: ['今週の叩き', 'wk'] };
   // 表の値の書き方：率は%、お金は¥
@@ -522,7 +587,7 @@
     $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); load(); };
   }
 
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else render(); });
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
   document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); S = null; load(); if (view === 'sales') loadSales(); });
   $('ssCancel').onclick = () => $('saleSheet').classList.remove('open');
   $('ssSave').onclick = saveSale;
