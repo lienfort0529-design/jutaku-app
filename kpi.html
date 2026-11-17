@@ -140,11 +140,16 @@
 
   let D = null, view = 'rank', prev = 0, role = 'ct';
 
+  // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
   function load() {
-    document.body.classList.add('busy');
+    const key = 'kpiCache' + prev + (store('jAdmin') ? 'a' : '');
+    let cached = null;
+    try { cached = JSON.parse(store(key) || 'null'); } catch (e) {}
+    if (cached) { D = cached; render(); $('msg').textContent = '最新の数字を読み込み中…'; } else document.body.classList.add('busy');
     google.script.run.withSuccessHandler(r => {
       document.body.classList.remove('busy');
       D = r; $('msg').textContent = '';
+      store(key, JSON.stringify(r));
       if (store('jAdmin') && !D.admin) { store('jAdmin', null); $('msg').textContent = '管理者の合言葉が違います'; }
       if (!D.admin && (view === 'list' || view === 'one')) view = 'rank';
       render();
@@ -359,7 +364,7 @@
     const box = $('adminBox');
     if (D.admin) {
       box.innerHTML = '<button id="adOut">管理者をやめる</button>';
-      $('adOut').onclick = () => { store('jAdmin', null); view = 'rank'; load(); };
+      $('adOut').onclick = () => { store('jAdmin', null); store('kpiCache0a', null); store('kpiCache1a', null); view = 'rank'; load(); };
       return;
     }
     box.innerHTML = '<button id="adIn">管理者</button><div id="adForm" class="hide" style="margin-top:8px"><input id="adPass" type="password" placeholder="管理者の合言葉"><button id="adGo">入る</button></div>';
