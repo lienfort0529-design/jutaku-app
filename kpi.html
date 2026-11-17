@@ -78,7 +78,10 @@
   .chk { display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 14px; }
   .chk input { width: 22px; height: 22px; }
   .acts { display: flex; gap: 10px; } .acts button { flex: 1; padding: 13px; font-size: 16px; font-weight: 600; border-radius: 12px; border: 0; }
-  .acts .ok { background: #2a56a8; color: #fff; } .acts .cancel { background: #e3e8f0; }
+  .acts .ok { background: #2a56a8; color: #fff; }
+  .fi { display: grid; grid-template-columns: 1fr 150px; gap: 8px 10px; align-items: center; }
+  .fi label { font-size: 15px; } .fi input { width: 100%; text-align: right; }
+  .fi .ro { text-align: right; color: #888; font-size: 14px; } .acts .cancel { background: #e3e8f0; }
   #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 30; align-items: center; justify-content: center; flex-direction: column; font-weight: 600; }
   body.busy #overlay { display: flex; }
   .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2a56a8; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
@@ -136,7 +139,7 @@
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>KPI・ランキング</b></div></header>
   <div class="wrap">
     <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="sales">成約一覧</button>
-      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button></div>
+      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><button data-v="input" class="ad hide">入力</button></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
     <div id="view"></div>
@@ -161,7 +164,7 @@
   const MEDAL = ['🥇', '🥈', '🥉'];
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
 
-  let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null;
+  let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null, I = null, iSheet = 'クローザー';
 
   // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
   function load() {
@@ -174,7 +177,7 @@
       D = r; $('msg').textContent = '';
       store(key, JSON.stringify(r));
       if (store('jAdmin') && !D.admin) { store('jAdmin', null); $('msg').textContent = '管理者の合言葉が違います'; }
-      if (!D.admin && (view === 'list' || view === 'one')) view = 'rank';
+      if (!D.admin && (view === 'list' || view === 'one' || view === 'input')) view = 'rank';
       render();
     }).withFailureHandler(e => { document.body.classList.remove('busy'); $('msg').textContent = 'エラー: ' + e.message; })
       .kpiData(store('jAdmin') || '', !!prev);
@@ -184,7 +187,7 @@
     document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
     document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
     $('view').innerHTML = '';
-    ({ rank: renderRank, me: renderMe, sales: renderSales, list: renderList, one: renderOne })[view]();
+    ({ rank: renderRank, me: renderMe, sales: renderSales, list: renderList, one: renderOne, input: renderInput })[view]();
     renderAdmin();
   }
 
@@ -366,6 +369,61 @@
       .saleStatus(store('jAdmin') || '', !!prev, x.row, x.customer, editing.status, $('ssPassed').checked);
   }
 
+  // ===== 入力（管理者）：今月の表の、数式でない欄（目標・キャンセル数など） =====
+  function loadInput() {
+    I = null; render();
+    google.script.run.withSuccessHandler(r => { I = r; if (view === 'input') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).inputData(store('jAdmin') || '');
+  }
+  function renderInput() {
+    if (!I) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    I.forEach(b => {
+      const x = document.createElement('button');
+      x.textContent = b.sheet + '（' + b.month + '）'; x.className = b.sheet === iSheet ? 'on' : '';
+      x.onclick = () => { iSheet = b.sheet; render(); };
+      seg.appendChild(x);
+    });
+    $('view').appendChild(seg);
+    const B = I.find(b => b.sheet === iSheet), r = document.createElement('div'), sel = document.createElement('select');
+    r.className = 'row';
+    sel.add(new Option('名前を選ぶ', ''));
+    B.names.filter(Boolean).forEach(n => sel.add(new Option(n, n)));
+    const key = 'kpiIn' + iSheet;
+    sel.value = B.names.includes(store(key)) ? store(key) : '';
+    sel.onchange = () => { store(key, sel.value); render(); };
+    r.appendChild(sel);
+    $('view').appendChild(r);
+    const me = sel.value, j = B.names.indexOf(me);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を選ぶと、その人の目標・手入力の欄が出ます（数式で自動の欄は出ません）</div>'); return; }
+    const c = card(me + ' さん（' + B.month + '）'), f = document.createElement('div');
+    f.className = 'fi';
+    B.rows.forEach(x => {
+      const l = document.createElement('label');
+      l.textContent = x.label;
+      f.appendChild(l);
+      if (!x.ed[j]) { f.insertAdjacentHTML('beforeend', '<div class="ro">自動</div>'); return; }
+      const i = document.createElement('input');
+      i.inputMode = 'numeric'; i.value = x.vals[j]; i.dataset.row = x.row; i.dataset.label = x.label; i.dataset.old = x.vals[j];
+      f.appendChild(i);
+    });
+    c.appendChild(f);
+    c.insertAdjacentHTML('beforeend', '<div class="acts" style="margin-top:14px"><button class="ok" id="inSave">保存</button></div><div class="note">変えた欄だけシートに入ります。金額は「30000000」のように数字で</div>');
+    $('view').appendChild(c);
+    $('inSave').onclick = () => {
+      const ch = [...f.querySelectorAll('input')].filter(i => i.value.trim() !== String(i.dataset.old)).map(i => ({ row: Number(i.dataset.row), label: i.dataset.label, value: i.value.trim() }));
+      if (!ch.length) { $('msg').textContent = '変わった欄がありません'; return; }
+      document.body.classList.add('busy');
+      google.script.run.withSuccessHandler(res => {
+        document.body.classList.remove('busy');
+        I = res; $('msg').textContent = '保存しました：' + me + '（' + ch.map(x => x.label).join('・') + '）';
+        render();
+      }).withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })
+        .inputSave(store('jAdmin') || '', iSheet, me, ch);
+    };
+  }
+
   // ===== KPI一覧（管理者） =====
   const ROLES = { ct: ['プレイヤー（叩き）', 'ct'], ap: ['アポインター', 'ap'], cl: ['クローザー', 'cl'], wk: ['今週の叩き', 'wk'] };
   // 表の値の書き方：率は%、お金は¥
@@ -464,7 +522,7 @@
     $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); load(); };
   }
 
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else render(); });
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else render(); });
   document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); S = null; load(); if (view === 'sales') loadSales(); });
   $('ssCancel').onclick = () => $('saleSheet').classList.remove('open');
   $('ssSave').onclick = saveSale;
