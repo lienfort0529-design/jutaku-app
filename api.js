@@ -21,13 +21,36 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwuSrk2ny2oWX1hnTH2645A
       });
   }
 
+  // 前に読んだ結果をスマホに覚えておき、開いたときにすぐ出す（Apps Script は1回の読み込みに数秒かかるため）
+  // ONCE：設定・名前の一覧。今日覚えたものがあればそれをすぐ使い、裏で読み直して次に開いたときに使う
+  // TWICE：今日の数・予定。覚えたものをすぐ出し、新しいのが届いたら（変わっていれば）もう一度出す
+  const ONCE = ['getConfig', 'tConfig', 'yConfig', 'getApConfig'];
+  const TWICE = ['getToday', 'tGetToday', 'yForCloser', 'yData'];
+  const today = () => new Date().toLocaleDateString('sv-SE');
+  const keyOf = (fn, a) => 'jc:' + fn + ':' + JSON.stringify(a) + (ONCE.includes(fn) ? ':' + today() : '');
+  const load = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const keep = (k, v) => {
+    try { localStorage.setItem(k, v); } catch (e) {
+      try { Object.keys(localStorage).filter(x => x.startsWith('jc:')).forEach(x => localStorage.removeItem(x)); localStorage.setItem(k, v); } catch (e2) {}
+    }
+  };
+
   // google.script.run.withSuccessHandler(f).withFailureHandler(g).関数名(引数) と同じ書き方で使えるようにする
   function runner() {
     let ok = () => {}, ng = () => {};
     const p = new Proxy({}, { get(_, k) {
       if (k === 'withSuccessHandler') return f => { ok = f; return p; };
       if (k === 'withFailureHandler') return f => { ng = f; return p; };
-      return (...a) => { call(k, a).then(r => ok(r), e => ng(e)); };
+      return (...a) => {
+        if (!ONCE.includes(k) && !TWICE.includes(k)) { call(k, a).then(r => ok(r), e => ng(e)); return; }
+        const key = keyOf(k, a), old = load(key);
+        if (old) setTimeout(() => ok(JSON.parse(old)), 0);
+        call(k, a).then(r => {
+          const s = JSON.stringify(r);
+          keep(key, s);
+          if (!old || (TWICE.includes(k) && s !== old)) ok(r);
+        }, e => { if (!old) ng(e); });
+      };
     } });
     return p;
   }
