@@ -54,6 +54,10 @@
   tr.total td { background: #f6f8fb; font-weight: 700; }
   td.good { background: #eafaf0; } td.bad { background: #fdecea; }
   .chart svg { width: 100%; height: 150px; display: block; }
+  .gy td, .gy th { padding: 6px 4px; text-align: right; } .gy td:first-child, .gy th:first-child { text-align: left; } .gy td b { font-size: 16px; color: #2a56a8; }
+  .gyin { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; margin-top: 10px; font-size: 14px; }
+  .gyreset { padding: 8px 14px; font-size: 13px; border-radius: 10px; border: 1px solid #b9c2d0; background: #fff; color: #4b5567; }
+  .gyin input { width: 90px; text-align: right; } .gyin small { grid-column: 1 / -1; color: #888; margin-top: -4px; }
   .note { font-size: 13px; color: #888; margin: 6px 0; }
   .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .row select { flex: 1; min-width: 160px; }
@@ -138,7 +142,7 @@
 <body>
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>KPI・ランキング</b></div></header>
   <div class="wrap">
-    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="sales">成約一覧</button>
+    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="sales">成約一覧</button>
       <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><button data-v="input" class="ad hide">入力</button><button data-v="member" class="ad hide">メンバー</button></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
@@ -187,7 +191,7 @@
     document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
     document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
     $('view').innerHTML = '';
-    ({ rank: renderRank, me: renderMe, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
+    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
     renderAdmin();
   }
 
@@ -306,6 +310,84 @@
     }
     if (!g.children.length) g.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの' + D.month + '月の数字はまだありません</div>');
     $('view').appendChild(g);
+  }
+
+  // ===== 逆算（全員）：目標の件数から、先月の率で「あと何件いるか」をさかのぼる =====
+  const EDIT = {}; // 率・目標を変えて試した値（読み直すと先月の率に戻る）
+  const sum = (list, k) => list.reduce((t, x) => t + (Number(x[k]) || 0), 0);
+  function daysLeft() {
+    const [y, m, d] = D.today.split('-').map(Number);
+    return new Date(y, m, 0).getDate() - d + 1; // 今日を入れた今月の残りの日数
+  }
+  // stages：上から 目標の段階（goal・actual）→ 次の段階（rate＝次÷前 の逆、actual）…
+  function gyakuCard(id, title, stages) {
+    const c = card(title), box = document.createElement('div'), E = EDIT[id] = EDIT[id] || {}, left = daysLeft();
+    const perDay = v => v == null ? '-' : v / left >= 10 ? Math.ceil(v / left) : Math.ceil(v / left * 10) / 10;
+    const draw = () => {
+      const goal = E.goal != null ? E.goal : stages[0].goal;
+      let remain = goal == null ? null : Math.max(0, goal - (Number(stages[0].actual) || 0));
+      let h = '<table class="gy"><tr><th></th><th>今月の実績</th><th>あと</th><th>1日あたり</th></tr>';
+      stages.forEach((st, i) => {
+        if (i) { const r = E['r' + i] != null ? E['r' + i] / 100 : st.rate; remain = remain == null || !r ? null : remain / r; }
+        h += '<tr><td>' + st.label + '</td><td>' + (st.actual == null ? '-' : st.actual + st.unit) + '</td><td><b>' + (remain == null ? '-' : Math.ceil(remain) + st.unit) + '</b></td><td>' + (remain == null ? '-' : perDay(remain) + st.unit) + '</td></tr>';
+      });
+      box.innerHTML = h + '</table>';
+    };
+    c.appendChild(box);
+    const f = document.createElement('div');
+    f.className = 'gyin';
+    const inp = (label, key, val, sub) => {
+      f.insertAdjacentHTML('beforeend', '<span>' + label + '</span>');
+      const x = document.createElement('input');
+      x.type = 'number'; x.inputMode = 'decimal'; x.step = 'any'; x.min = 0; x.value = E[key] != null ? E[key] : val == null ? '' : val;
+      x.oninput = () => { E[key] = x.value === '' ? null : Number(x.value); draw(); };
+      f.appendChild(x);
+      if (sub) f.insertAdjacentHTML('beforeend', '<small>' + sub + '</small>');
+    };
+    inp('目標（' + stages[0].label + '）' + stages[0].unit, 'goal', stages[0].goal, stages[0].goal == null ? '目標がまだ入っていません。数字を入れると試せます' : '');
+    stages.slice(1).forEach((st, j) => inp(st.rateLabel + ' %', 'r' + (j + 1), st.rate == null ? null : Math.round(st.rate * 1000) / 10,
+      st.rate == null ? D.base.month + '月の数字がないので、率を入れると出ます' : D.base.month + '月の' + (st.team ? 'チームの' : '') + '率 ' + pct(st.rate)));
+    const rs = document.createElement('button');
+    rs.className = 'gyreset'; rs.textContent = D.base.month + '月の率に戻す'; rs.style.marginTop = '10px';
+    rs.onclick = () => { Object.keys(E).forEach(k => delete E[k]); render(); };
+    c.appendChild(f); c.appendChild(rs);
+    draw();
+    return c;
+  }
+  function renderGyaku() {
+    if (prev) { $('view').insertAdjacentHTML('beforeend', '<div class="note">逆算は今月だけです</div>'); return; }
+    if (!D.base) { $('view').insertAdjacentHTML('beforeend', '<div class="note">最新の数字を読み込み中…</div>'); return; }
+    const B = D.base, bc = B.closers, bp = B.players;
+    const T = { s: sum(bc, 's'), c: sum(bc, 'c'), k: sum(bp, 'k'), t: sum(bp, 't'), a: sum(bp, 'a') };
+    const team = { close: rate(T.c, T.s), meet: rate(T.s, T.a), apo: rate(T.a, T.t), face: rate(T.t, T.k) };
+    const g = document.createElement('div');
+    g.className = 'grid';
+    const st = (label, unit, actual, rateLabel, r, isTeam) => ({ label: label, unit: unit, actual: actual, rateLabel: rateLabel, rate: r, team: isTeam });
+    const L = { close: '成約率（商談→契約）', meet: '商談化率（アポ→商談）', apo: 'アポ率（対面→アポ）', face: '対面率（叩き→対面）' };
+    const t0 = st('契約', '件', D.team.count); t0.goal = D.team.countGoal;
+    g.appendChild(gyakuCard('team', 'チーム全体', [t0,
+      st('商談', '件', sum(D.closers, 's'), L.close, team.close), st('アポ', '件', sum(D.players, 'a'), L.meet, team.meet),
+      st('対面', '件', sum(D.players, 't'), L.apo, team.apo), st('叩き', '軒', sum(D.players, 'k'), L.face, team.face)]));
+    $('view').appendChild(g);
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝今日を入れた残り' + daysLeft() + '日で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
+    const me = nameSelect('kpiMe', render);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">自分の名前を選ぶと、自分の率での逆算も出ます</div>'); return; }
+    const m = document.createElement('div');
+    m.className = 'grid';
+    const own = (v, b) => v == null ? [b, true] : [v, false]; // 自分の先月の数字がなければチームの率
+    const c = D.closers.find(x => x.name === me), pc = bc.find(x => x.name === me);
+    if (c) {
+      const r = own(pc && rate(pc.c, pc.s), team.close), s0 = st('契約', '件', c.count); s0.goal = c.countGoal;
+      m.appendChild(gyakuCard('c:' + me, me + '（クローザー）', [s0, st('商談', '件', c.s, L.close, r[0], r[1]), st('アポ', '件', null, L.meet, team.meet, true)]));
+    }
+    const p = D.players.find(x => x.name === me), a = D.apos.find(x => x.name === me), pp = bp.find(x => x.name === me);
+    if (p || a) {
+      const rf = own(pp && rate(pp.t, pp.k), team.face), ra = own(pp && rate(pp.a, pp.t), team.apo);
+      const s0 = st('アポ', '件', p ? p.a : a.a); s0.goal = a ? a.goal : null;
+      m.appendChild(gyakuCard('p:' + me, me + '（叩き）', [s0, st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])]));
+    }
+    if (!m.children.length) m.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの目標・数字はまだありません</div>');
+    $('view').appendChild(m);
   }
 
   // ===== 成約一覧（全員が見る・管理者が状態を直す） =====
