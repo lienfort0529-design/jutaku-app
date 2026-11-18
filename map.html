@@ -273,7 +273,7 @@
   let placing = false; // 「地図に置く」：地図を押した場所に未訪問ピンを置く（前日に回るエリアを決めるとき）
 
   // ===== 地図（国土地理院の淡色地図と航空写真。無料・会社での利用も可）。右上のボタンで切り替え、スマホが覚える =====
-  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([35.68, 139.76], 15);
+  const map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21 }) // 拡大の上限を先に決める（写真の準備中でもピンのまとめ表示が動くように）.setView([35.68, 139.76], 15);
   const gsi = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
   // 写真は Google の衛星写真（Map Tiles API。キーは lienfort0529-design.github.io だけで使えるように制限してある）。
   // 使えないとき（キーの問題・電波など）は国土地理院の航空写真に切り替える
