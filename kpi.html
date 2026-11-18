@@ -284,6 +284,13 @@
     const s = D.apSales.find(x => x.name === me), t = D.todayPlayers.find(x => x.name === me), w = D.week && D.week.players.find(x => x.name === me);
     if (c) { g.appendChild(goalCard('売上（クローザー）', c.sales, c.salesGoal, yen)); g.appendChild(goalCard('契約件数', c.count, c.countGoal, v => v == null ? '-' : v + '件')); }
     if (a) g.appendChild(goalCard('アポ数', a.a, a.goal, v => v == null ? '-' : v + '件'));
+    if (a && (a.ry != null || a.ka != null)) {
+      // 両面・片面のアポと、そこから商談に入った数（不在・フロントアウト以外）
+      const k = card('両面・片面（' + D.month + '月）'), n = v => Number(v) || 0;
+      k.insertAdjacentHTML('beforeend', '<div class="kv"><span>両面アポ</span><b>' + n(a.ry) + '件</b><span>両面から商談</span><b>' + n(a.rm) + '件（' + pct(rate(n(a.rm), n(a.ry))) + '）</b>' +
+        '<span>片面アポ</span><b>' + n(a.ka) + '件</b><span>片面から商談</span><b>' + n(a.km) + '件（' + pct(rate(n(a.km), n(a.ka))) + '）</b></div>');
+      g.appendChild(k);
+    }
     if (p) {
       const k = card('叩き（' + D.month + '月）');
       k.insertAdjacentHTML('beforeend', '<div class="kv"><span>叩き数</span><b>' + p.k + '軒</b><span>対面数</span><b>' + p.t + '</b><span>アポ</span><b>' + p.a + '件</b>' +

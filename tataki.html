@@ -125,8 +125,10 @@
 
 <script>
   const COLORS = { '不在':'#8a8f98', 'インターホンNG':'#d9534f', 'フロントNG':'#e67e22', 'トーク後NG':'#c0392b',
-                   'アポ':'#27ae60', '再訪':'#2980b9', '蓄ファ':'#8e44ad', '対象外':'#555' };
-  const FACE = ['フロントNG','トーク後NG','アポ','再訪','蓄ファ','対象外'];
+                   'アポ':'#27ae60', '両面アポ':'#27ae60', '片面アポ':'#16a085', '再訪':'#2980b9', '蓄ファ':'#8e44ad', '対象外':'#555' };
+  // アポは両面・片面の2つのボタン（どちらもアポ数に入る。前からの「アポ」も数える）
+  const APOS = ['アポ','両面アポ','片面アポ'];
+  const FACE = ['フロントNG','トーク後NG','再訪','蓄ファ','対象外'].concat(APOS);
   const $ = id => document.getElementById(id);
   let results = [], busy = false, sending = false, sent = {};
 
@@ -196,11 +198,11 @@
     const face = FACE.reduce((s, r) => s + (counts[r] || 0), 0);
     $('face').textContent = face;
     $('knock').textContent = face + (counts['不在'] || 0) + (counts['インターホンNG'] || 0);
-    $('apo').textContent = counts['アポ'] || 0;
+    $('apo').textContent = APOS.reduce((s, r) => s + (counts[r] || 0), 0);
     $('pending').style.display = queue.length ? 'block' : 'none';
     $('pending').textContent = '未送信 ' + queue.length + '件（電波が戻ったら自動で送ります）';
     // 目標までのカウントダウン
-    const g = myGoal(), now = { knock: Number($('knock').textContent), face: face, apo: counts['アポ'] || 0 };
+    const g = myGoal(), now = { knock: Number($('knock').textContent), face: face, apo: Number($('apo').textContent) };
     $('goalEdit').style.display = name ? 'block' : 'none';
     $('goalEdit').textContent = g ? '🎯 今日の目標を変える' : '🎯 今日の目標を入れる';
     [['knock', 'k'], ['face', 't'], ['apo', 'a']].forEach(([id, k]) => {
