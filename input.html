@@ -697,23 +697,17 @@
   $('ssSave').onclick = saveSale;
   // 入力・メンバーの画面：KPI の数字は読まず、管理者の合言葉があればその表だけ読む
   function modeLoad() {
-    D = { admin: !!store('jAdmin') };
-    if (!D.admin) { render(); return; }
+    D = { admin: true }; // 入力・メンバーは管理者でなくても使える（2026-11-18〜）
     I = MB = null; render();
     google.script.run.withSuccessHandler(r => { if (MODE === 'input') I = r; else MB = r; $('msg').textContent = ''; render(); })
       .withFailureHandler(e => {
-        if (/管理者/.test(e.message)) { store('jAdmin', null); D.admin = false; $('msg').textContent = '管理者の合言葉が違います'; render(); }
-        else $('msg').textContent = 'エラー: ' + e.message;
+        $('msg').textContent = 'エラー: ' + e.message;
       })[MODE === 'input' ? 'inputData' : 'memberData'](store('jAdmin') || '');
   }
   if (MODE) {
     view = MODE;
     document.querySelector('.tabs').classList.add('hide'); $('mon').classList.add('hide');
-    const r0 = render;
-    render = () => {
-      if (!D.admin) { $('view').innerHTML = '<div class="note">管理者だけが使えます。下の「管理者」から合言葉を入れてください</div>'; renderAdmin(); return; }
-      r0();
-    };
+    renderAdmin = () => { $('adminBox').innerHTML = ''; };
     modeLoad();
   } else load();
 </script>
