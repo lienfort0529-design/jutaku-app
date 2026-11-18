@@ -201,6 +201,10 @@
     <div class="sub" id="formSub"></div>
     <label>ステータス</label>
     <div class="stats" id="stats"></div>
+    <label>お客様名（〇〇邸）</label>
+    <input id="cust" placeholder="例：中園邸（なくてもよい）">
+    <label>よみがな（ひらがなで検索できるように）</label>
+    <input id="kana" placeholder="例：なかぞのてい">
     <label>メモ</label>
     <textarea id="memo" rows="3" placeholder="お客様の様子、次に話すことなど"></textarea>
     <label>写真</label>
@@ -602,6 +606,8 @@
       [...$('stats').children].forEach(x => x.classList.toggle('on', x === b));
     });
     $('memo').value = ''; $('photoIn').value = ''; $('photoPrev').innerHTML = '';
+    $('cust').value = f.mode === 'visit' ? f.pin.cust || '' : ''; // 訪問のときは前に入れた名前から
+    $('kana').value = f.mode === 'visit' ? f.pin.kana || '' : '';
     $('view').classList.remove('open');
     $('form').classList.add('open');
   }
@@ -627,7 +633,8 @@
   $('formOk').onclick = () => {
     if (!form.status) return alert('ステータスを選んでください');
     const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
-    const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts };
+    const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts,
+      cust: $('cust').value.trim(), kana: $('kana').value.trim() };
     if (form.photo) { base.photoKey = id; photoStore('put', id, form.photo); } // 写真は大きな保存場所にもためておく
     if (form.mode === 'pin') queue.push({ fn: 'mAddPin', arg: Object.assign({ id, lat: form.lat, lng: form.lng }, base) });
     else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id, lat: form.pin.lat, lng: form.pin.lng }, base) });
@@ -685,7 +692,7 @@
   // ===== ピンの訪問履歴 =====
   function openView(p) {
     form = { pin: p };
-    $('viewTitle').textContent = p.address || 'ピン';
+    $('viewTitle').textContent = (p.cust ? p.cust + '　' : '') + (p.address || (p.cust ? '' : 'ピン'));
     const visited = Number(p.count) > 0 || queue.some(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id);
     $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　` + (Number(p.count) > 0 ? `訪問 ${p.count}回` : 'まだ訪問していません');
     $('delBtn').style.display = visited || p.by !== me ? 'none' : ''; // 消せるのは立てた本人の、訪問記録がないピンだけ
@@ -783,7 +790,7 @@
     const seen = new Set(), list = a.concat(g.results).filter(x => {
       const k = x.lat.toFixed(4) + ',' + x.lng.toFixed(4);
       return seen.has(k) ? false : seen.add(k);
-    }).map(x => Object.assign(x, { km: map.distance(ctr, [x.lat, x.lng]) / 1000 })).sort((x, y) => x.km - y.km).slice(0, 15);
+    }).map(x => Object.assign(x, { km: map.distance(ctr, [x.lat, x.lng]) / 1000 })).sort((x, y) => (x.pin ? 0 : 1) - (y.pin ? 0 : 1) || x.km - y.km).slice(0, 15); // 営業マップのピン（〇〇邸）を先に
     $('findNote').textContent = list.length ? '' : '見つかりませんでした。地名や住所を足してみてください';
     $('findList').innerHTML = list.map(x => `<button>${esc(x.name)}<small>${esc(x.sub || '')}　${kmText(x.km)}</small></button>`).join('');
     [...$('findList').children].forEach((el, i) => el.onclick = () => {
