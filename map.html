@@ -15,6 +15,9 @@
 <script src="api.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; font-family: -apple-system, sans-serif; }
@@ -281,7 +284,9 @@
   }
   $('layerBtn').onclick = () => setLayer(layer === 'photo' ? 'map' : 'photo');
   setLayer(layer);
-  const pinLayer = L.layerGroup().addTo(map), peopleLayer = L.layerGroup().addTo(map);
+  // ピンは縮小すると件数の丸にまとめる（数千本でも軽く動くように）
+  const pinLayer = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50, disableClusteringAtZoom: 17, showCoverageOnHover: false }).addTo(map);
+  const peopleLayer = L.layerGroup().addTo(map);
   const meDot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: '#2a56a8', fillOpacity: 1 });
   const meAcc = L.circle([0, 0], { radius: 1, color: '#2a56a8', weight: 1, fillOpacity: .1 });
   map.on('dragstart', () => { follow = false; });
@@ -359,15 +364,8 @@
 
   function show(d) {
     on = d.on;
-    if (d.pins) { // full なら全部、それ以外は前回から変わった分だけ
-      if (d.full) pins = d.pins;
-      else {
-        const ch = new Set(d.pins.map(p => p.id).concat(d.deleted || []));
-        pins = pins.filter(p => !ch.has(p.id)).concat(d.pins);
-      }
-      drawPins();
-    }
-    ver = d.ver;
+    if (d.reset) { pins = []; tiles.clear(); ver = ''; drawPins(); loadArea(); } // 長く開いていなかったので読み込み直す
+    else if (d.changes) { applyChanges(d.changes); ver = d.ver; }
     peopleLayer.clearLayers();
     d.people.filter(p => p.name !== me).forEach(p => {
       const icon = L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 34],
@@ -380,19 +378,59 @@
     setState();
   }
 
+  // ===== 見ている地域のピンだけ読む（地域＝約10km四方。ピンが何万本になっても速さが変わらない） =====
+  const tiles = new Set(); // 読み込んだ地域
+  const tileKey = (lat, lng) => 'P' + Math.floor(lat * 10) + '_' + Math.floor(lng * 10);
+  let loadingArea = false;
+  function loadArea() {
+    if (loadingArea || map.getZoom() < 11) return; // 広すぎる範囲は読まない
+    const b = map.getBounds().pad(0.3), need = [];
+    for (let a = Math.floor(b.getSouth() * 10); a <= Math.floor(b.getNorth() * 10); a++)
+      for (let o = Math.floor(b.getWest() * 10); o <= Math.floor(b.getEast() * 10); o++)
+        if (!tiles.has('P' + a + '_' + o)) need.push('P' + a + '_' + o);
+    if (!need.length) return;
+    loadingArea = true;
+    const keys = need.slice(0, 40);
+    run('mPins', keys).then(r => {
+      keys.forEach(k => tiles.add(k));
+      const ids = new Set(r.pins.map(p => p.id));
+      pins = pins.filter(p => !ids.has(p.id)).concat(r.pins);
+      if (!ver) ver = r.ver;
+      loadingArea = false;
+      drawPins();
+      loadArea(); // まだ足りない地域があれば続けて
+    }).catch(() => { loadingArea = false; });
+  }
+  map.on('moveend', loadArea);
+  let showLabel = '表示 ▾';
+  const drawShowBtn = () => { $('showBtn').textContent = map.getZoom() < 11 ? 'ピンは拡大すると出ます ▾' : showLabel; };
+  map.on('zoomend', drawShowBtn);
+
+  // 前回から変わったピン（読み込んだ地域のものだけ持つ）
+  function applyChanges(ch) {
+    if (!ch.length) return;
+    ch.forEach(c => {
+      pins = pins.filter(p => p.id !== c.id);
+      if (!c.deleted && tiles.has(tileKey(c.lat, c.lng))) pins.push(c);
+    });
+    drawPins();
+  }
+
   function drawPins() {
     pinLayer.clearLayers();
     const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: q.arg.plan ? 0 : 1 }, q.arg));
-    const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg);
+    const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg.id || q.arg);
     const all = pins.concat(waiting).filter(p => !gone.includes(p.id));
-    let n = 0;
+    const marks = [];
     all.forEach(p => {
       const st = latestStatus(p);
       if (!visible(p, st)) return;
-      n++;
-      L.marker([p.lat, p.lng], { icon: pinIcon(st, p.wait) }).on('click', () => openView(p)).addTo(pinLayer);
+      marks.push(L.marker([p.lat, p.lng], { icon: pinIcon(st, p.wait) }).on('click', () => openView(p)));
     });
-    $('showBtn').textContent = filtered() ? `絞り込み中 ${n}/${all.length} ▾` : `表示 ${all.length}件 ▾`;
+    pinLayer.addLayers(marks);
+    const n = marks.length;
+    showLabel = filtered() ? `絞り込み中 ${n}/${all.length} ▾` : `表示 ${all.length}件 ▾`;
+    drawShowBtn();
     $('showBtn').classList.toggle('on', filtered());
   }
 
@@ -449,7 +487,7 @@
     me = n; store.set('mName', n);
     $('whoBtn').textContent = n;
     $('who').classList.remove('open');
-    ver = ''; tick();
+    tick();
   }
   $('whoBtn').onclick = openWho;
   $('whoOk').onclick = () => setMe($('nameIn').value);
@@ -498,7 +536,7 @@
     $('view').classList.remove('open');
     const i = queue.findIndex(q => q.fn === 'mAddPin' && q.arg.id === p.id);
     if (i >= 0 && !(sending && i === 0)) { queue.splice(i, 1); saveQueue(); drawPins(); setState(); return; }
-    queue.push({ fn: 'mDeletePin', arg: p.id });
+    queue.push({ fn: 'mDeletePin', arg: { id: p.id, lat: p.lat, lng: p.lng } });
     saveQueue(); pins = pins.filter(x => x.id !== p.id); drawPins(); setState(); flush();
   };
 
@@ -539,7 +577,7 @@
     const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
     const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts };
     if (form.mode === 'pin') queue.push({ fn: 'mAddPin', arg: Object.assign({ id, lat: form.lat, lng: form.lng }, base) });
-    else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id }, base) });
+    else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id, lat: form.pin.lat, lng: form.pin.lng }, base) });
     saveQueue();
     $('form').classList.remove('open');
     drawPins(); setState();
@@ -558,7 +596,8 @@
       if (queue.length) flush(); else drawPins();
     }).catch(e => {
       sending = false; setState();
-      if (!/通信できません/.test(e.message)) { // 送っても入らない記録（ピンが消された等）は捨てる
+      // 送っても入らない記録（ピンが消された等）だけ捨てる。混雑・電波・そのほかの失敗はスマホに残して送り直す
+      if (/見つかりません|消せません|名前を選んで/.test(e.message)) {
         queue.shift(); saveQueue(); drawPins(); alert('保存できませんでした：' + e.message);
       }
     });
@@ -744,6 +783,7 @@
   $('whoBtn').textContent = me || '名前';
   run('mConfig').then(c => {
     names = c.names; statuses = c.statuses; drawTags(); drawPins();
+    if (pos) loadArea(); else setTimeout(loadArea, 4000); // 位置が分かれば移動したときに読む
     if (!me) openWho();
     tick();
   }).catch(e => setState('エラー：' + e.message));
