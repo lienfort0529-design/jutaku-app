@@ -524,10 +524,11 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); tick(); } });
 
   // ===== 名前 =====
-  let names = [];
+  let names = [], kyushu = [];
   function openWho() {
-    $('names').innerHTML = names.map(n => `<button>${esc(n)}</button>`).join('');
-    [...$('names').children].forEach(b => b.onclick = () => setMe(b.textContent));
+    const btns = list => list.map(n => `<button>${esc(n)}</button>`).join('');
+    $('names').innerHTML = btns(names) + (kyushu.length ? '<div class="sub" style="margin:12px 0 6px">九州支社</div>' + btns(kyushu) : '');
+    $('names').querySelectorAll('button').forEach(b => b.onclick = () => setMe(b.textContent));
     $('nameIn').value = '';
     $('who').classList.add('open');
   }
@@ -627,6 +628,7 @@
     if (!form.status) return alert('ステータスを選んでください');
     const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
     const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts };
+    if (form.photo) { base.photoKey = id; photoStore('put', id, form.photo); } // 写真は大きな保存場所にもためておく
     if (form.mode === 'pin') queue.push({ fn: 'mAddPin', arg: Object.assign({ id, lat: form.lat, lng: form.lng }, base) });
     else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id, lat: form.pin.lat, lng: form.pin.lng }, base) });
     saveQueue();
@@ -641,22 +643,43 @@
     if (sending || !queue.length) return;
     sending = true;
     const q = queue[0];
-    run(q.fn, q.arg, me, ver).then(d => {
+    // スマホを閉じたあとの送り直しでは、写真は大きな保存場所から出して送る
+    (q.arg.photoKey && !q.arg.photo ? photoStore('get', q.arg.photoKey).then(ph => Object.assign({}, q.arg, { photo: ph || '' })) : Promise.resolve(q.arg))
+      .then(a => run(q.fn, a, me, ver)).then(d => {
       queue.shift(); saveQueue(); sending = false;
+      if (q.arg.photoKey) photoStore('delete', q.arg.photoKey);
       show(d); // 送った記録の分を地図に出す
       if (queue.length) flush(); else drawPins();
     }).catch(e => {
       sending = false; setState();
       // 送っても入らない記録（ピンが消された等）だけ捨てる。混雑・電波・そのほかの失敗はスマホに残して送り直す
-      if (/見つかりません|消せません|名前を選んで/.test(e.message)) {
+      if (/見つかりません|消せません|本人だけ|名前を選んで/.test(e.message)) {
+        if (q.arg.photoKey) photoStore('delete', q.arg.photoKey);
         queue.shift(); saveQueue(); drawPins(); alert('保存できませんでした：' + e.message);
       }
     });
   }
   setInterval(flush, 20000);
   window.addEventListener('online', flush);
+  // 未送信の記録はスマホの小さな保存場所（localStorage）に、写真は大きな保存場所（IndexedDB）にためる
   function saveQueue() {
-    if (!store.set('mQueue', queue)) store.set('mQueue', queue.map(q => Object.assign({}, q, { arg: Object.assign({}, q.arg, { photo: '' }) })));
+    const noPhoto = q => Object.assign({}, q, { arg: Object.assign({}, q.arg, { photo: '' }) });
+    if (!store.set('mQueue', queue.map(q => q.arg.photoKey ? noPhoto(q) : q))) store.set('mQueue', queue.map(noPhoto));
+  }
+  let photoDb = null;
+  function photoStore(op, key, val) {
+    photoDb = photoDb || new Promise((ok, ng) => {
+      const r = indexedDB.open('eigyoMap', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('photos');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ng(r.error);
+    });
+    return photoDb.then(db => new Promise((ok, ng) => {
+      const t = db.transaction('photos', op === 'get' ? 'readonly' : 'readwrite'), st = t.objectStore('photos');
+      const r = op === 'put' ? st.put(val, key) : op === 'get' ? st.get(key) : st.delete(key);
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ng(r.error);
+    })).catch(() => null);
   }
 
   // ===== ピンの訪問履歴 =====
@@ -665,7 +688,7 @@
     $('viewTitle').textContent = p.address || 'ピン';
     const visited = Number(p.count) > 0 || queue.some(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id);
     $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　` + (Number(p.count) > 0 ? `訪問 ${p.count}回` : 'まだ訪問していません');
-    $('delBtn').style.display = visited ? 'none' : '';
+    $('delBtn').style.display = visited || p.by !== me ? 'none' : ''; // 消せるのは立てた本人の、訪問記録がないピンだけ
     $('viewCoord').textContent = `座標：${(+p.lat).toFixed(6)}, ${(+p.lng).toFixed(6)}`;
     const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id && !q.arg.plan) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
       .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
@@ -833,7 +856,7 @@
   layout();
   $('whoBtn').textContent = me || '名前';
   run('mConfig').then(c => {
-    names = c.names; statuses = c.statuses; drawTags(); drawPins();
+    names = c.names; kyushu = c.kyushu || []; statuses = c.statuses; drawTags(); drawPins();
     if (pos) loadArea(); else setTimeout(loadArea, 4000); // 位置が分かれば移動したときに読む
     if (!me) openWho();
     tick();
