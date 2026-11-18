@@ -288,7 +288,8 @@
       const k = card('叩き（' + D.month + '月）');
       k.insertAdjacentHTML('beforeend', '<div class="kv"><span>叩き数</span><b>' + p.k + '軒</b><span>対面数</span><b>' + p.t + '</b><span>アポ</span><b>' + p.a + '件</b>' +
         '<span>対面率</span><b>' + pct(rate(p.t, p.k)) + '</b><span>対面からのアポ率</span><b>' + pct(rate(p.a, p.t)) + '</b>' +
-        (w ? '<span>今週のアポ</span><b>' + w.a + '件</b>' : '') + (t ? '<span>今日</span><b>叩き' + t.k + '・アポ' + t.a + '</b>' : '') + '</div>');
+        (w ? '<span>今週のアポ</span><b>' + w.a + '件</b>' : '') + (t ? '<span>今日</span><b>叩き' + t.k + '・アポ' + t.a + '</b>' : '') +
+        ((gl => gl ? '<span>今日の目標</span><b>叩き' + gl.k + '・対面' + gl.t + '・アポ' + gl.a + '</b>' : '')((D.goals || []).find(x => x.name === me))) + '</div>');
       g.appendChild(k);
     }
     if (s) {
@@ -498,7 +499,19 @@
     if (/売上|単価|純売上/.test(label) || (label === '現状' && /売上/.test(prevLabel))) return yen(v);
     return num(v);
   }
+  // 今日の目標（カウンターで本人が入れたもの）と今日の実績
+  function goalTable() {
+    if (!D.goals || !D.goals.length) return;
+    const cell = (v, g) => '<td class="' + (v >= g ? 'good' : '') + '">' + v + ' / ' + g + (v >= g ? ' ✓' : ' <small style="color:#999">あと' + (g - v) + '</small>') + '</td>';
+    let h = '<div class="tbl" style="margin-bottom:12px"><table><tr><th>今日の目標</th><th>叩き数</th><th>対面数</th><th>アポ</th></tr>';
+    D.goals.slice().sort((x, y) => x.name.localeCompare(y.name, 'ja')).forEach(g => {
+      const t = D.todayPlayers.find(x => x.name === g.name) || { k: 0, t: 0, a: 0 };
+      h += '<tr><td>' + esc(g.name) + '</td>' + cell(t.k, g.k) + cell(t.t, g.t) + cell(t.a, g.a) + '</tr>';
+    });
+    $('view').insertAdjacentHTML('beforeend', h + '</table></div>');
+  }
   function renderList() {
+    if (!D.prev) goalTable();
     const seg = document.createElement('div');
     seg.className = 'seg';
     Object.keys(ROLES).forEach(k => {

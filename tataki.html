@@ -17,8 +17,26 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; padding: 16px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
   select { width: 100%; font-size: 18px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
-  .summary { display: flex; justify-content: space-between; margin: 14px 0; font-size: 15px; }
-  .summary b { font-size: 26px; display: block; }
+  .summary { display: flex; gap: 8px; margin: 14px 0; font-size: 15px; }
+  .summary > div { flex: 1; background: #fff; border-radius: 12px; padding: 8px 6px; text-align: center; }
+  .summary > div > b { font-size: 26px; display: block; }
+  .left { display: block; font-size: 13px; color: #555; min-height: 0; }
+  .left .n { font-size: 20px; font-weight: 700; color: #d35400; }
+  .left .done { font-size: 15px; font-weight: 700; color: #27ae60; }
+  .left .bar { display: block; height: 6px; background: #e3e6ea; border-radius: 3px; margin: 4px 0 2px; overflow: hidden; }
+  .left .bar i { display: block; height: 100%; background: #2a56a8; }
+  .left .g { font-size: 11px; color: #888; }
+  #goalEdit { display: none; width: 100%; margin: -6px 0 12px; padding: 8px; font-size: 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; color: #2a56a8; }
+  #goalBox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; align-items: center; justify-content: center; padding: 16px; }
+  #goalBox.on { display: flex; }
+  .gcard { background: #fff; border-radius: 16px; padding: 18px; width: 100%; max-width: 360px; }
+  .gcard h3 { margin: 0 0 4px; font-size: 20px; }
+  .gcard p { margin: 0 0 12px; color: #666; font-size: 14px; }
+  .gcard label { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; font-size: 17px; font-weight: 600; }
+  .gcard input { width: 110px; font-size: 22px; padding: 8px; border-radius: 10px; border: 1px solid #ccc; text-align: right; }
+  .gcard .go { width: 100%; margin-top: 12px; padding: 14px; font-size: 18px; font-weight: 700; border: 0; border-radius: 12px; background: #2a56a8; color: #fff; }
+  .gcard .no { width: 100%; margin-top: 8px; padding: 10px; font-size: 15px; border: 0; background: none; color: #666; }
+  #goalMsg { color: #c0392b; font-size: 14px; min-height: 18px; margin-top: 6px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   button.r { min-height: 76px; font-size: 17px; font-weight: 600; border: 0; border-radius: 14px; color: #fff; position: relative; }
   button.r:active { transform: scale(.96); }
@@ -85,14 +103,24 @@
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>叩きカウンター</b></div></header>
   <select id="name"><option value="">名前を選択</option></select>
   <div class="summary">
-    <div>叩き数<b id="knock">0</b></div>
-    <div>対面数<b id="face">0</b></div>
-    <div>アポ<b id="apo">0</b></div>
+    <div>叩き数<b id="knock">0</b><span class="left" id="l-knock"></span></div>
+    <div>対面数<b id="face">0</b><span class="left" id="l-face"></span></div>
+    <div>アポ<b id="apo">0</b><span class="left" id="l-apo"></span></div>
   </div>
+  <button id="goalEdit">🎯 今日の目標を変える</button>
   <div class="grid" id="grid"></div>
   <button class="undo" id="undo">↩ 直前を取り消す</button>
   <div id="msg"></div>
   <div id="pending"></div>
+  <div id="goalBox"><div class="gcard">
+    <h3>🎯 今日の目標</h3><p id="goalWho"></p>
+    <label>叩き数<input id="g-k" type="number" inputmode="numeric" min="0" placeholder="軒"></label>
+    <label>対面数<input id="g-t" type="number" inputmode="numeric" min="0"></label>
+    <label>アポ<input id="g-a" type="number" inputmode="numeric" min="0" placeholder="件"></label>
+    <div id="goalMsg"></div>
+    <button class="go" id="goalOk">決定してスタート</button>
+    <button class="no" id="goalNo">閉じる</button>
+  </div></div>
   <div id="overlay"><div class="spinner"></div><span id="overlayText">記録中…</span></div>
 
 <script>
@@ -109,6 +137,58 @@
   function saveQueue() { try { localStorage.setItem('tQueue', JSON.stringify(queue)); } catch (e) {} }
   const day = t => new Date(t).toDateString();
 
+  // 今日の目標：その日に初めて開いた（名前を選んだ）ときに入れる。スマホに保存（tGoal）してシート「今日の目標」にも送る。その日のうちは直せる
+  const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  let goals = {}, goalSending = false;
+  try { goals = JSON.parse(localStorage.getItem('tGoal')) || {}; } catch (e) {}
+  function saveGoals() {
+    Object.keys(goals).forEach(n => { if (goals[n].day !== todayKey()) delete goals[n]; });
+    try { localStorage.setItem('tGoal', JSON.stringify(goals)); } catch (e) {}
+  }
+  function myGoal() { const g = goals[$('name').value]; return g && g.day === todayKey() ? g : null; }
+  function openGoal(edit) {
+    const name = $('name').value, g = myGoal();
+    if (!name) return;
+    $('goalWho').textContent = name + ' さん、今日の目標を入れてください';
+    ['k', 't', 'a'].forEach(k => $('g-' + k).value = g ? g[k] : '');
+    $('goalMsg').textContent = '';
+    $('goalNo').style.display = edit ? 'block' : 'none';
+    $('goalBox').classList.add('on');
+  }
+  function closeGoal() { $('goalBox').classList.remove('on'); }
+  function setGoal() {
+    const v = {};
+    for (const k of ['k', 't', 'a']) {
+      const s = $('g-' + k).value.trim(), n = Number(s);
+      if (s === '' || !(n >= 0) || n !== Math.floor(n)) { $('goalMsg').textContent = '3つとも0以上の数を入れてください'; return; }
+      v[k] = n;
+    }
+    goals[$('name').value] = Object.assign({ day: todayKey(), sent: false }, v);
+    saveGoals(); closeGoal(); render(); sendGoal();
+    $('msg').textContent = '今日の目標を決めました。がんばりましょう！';
+  }
+  // まだ送っていない目標を送る（電波がなければ、あとで送る）
+  function sendGoal() {
+    const name = Object.keys(goals).find(n => !goals[n].sent && goals[n].day === todayKey());
+    if (goalSending || !name) return;
+    const g = goals[name];
+    goalSending = true;
+    google.script.run
+      .withSuccessHandler(() => { goalSending = false; if (goals[name] === g) { g.sent = true; saveGoals(); } sendGoal(); })
+      .withFailureHandler(() => { goalSending = false; })
+      .tSetGoal(name, { k: g.k, t: g.t, a: g.a });
+  }
+  // 今日の数を受け取ったとき：シートの目標があれば使い、どこにもなければ目標を入れる画面を出す
+  function onToday(c) {
+    sent = c;
+    if (c && c._day === todayKey() && $('name').value) {
+      const name = $('name').value, g = myGoal();
+      if (c._goal && (!g || g.sent)) { goals[name] = Object.assign({ day: todayKey(), sent: true }, c._goal); saveGoals(); if ($('goalNo').style.display === 'none') closeGoal(); }
+      else if (!c._goal && !g) openGoal(false);
+    }
+    render();
+  }
+
   function render() {
     const name = $('name').value, counts = Object.assign({}, sent);
     queue.filter(q => q.name === name && day(q.ts) === day(Date.now())).forEach(q => counts[q.result] = (counts[q.result] || 0) + 1);
@@ -119,12 +199,24 @@
     $('apo').textContent = counts['アポ'] || 0;
     $('pending').style.display = queue.length ? 'block' : 'none';
     $('pending').textContent = '未送信 ' + queue.length + '件（電波が戻ったら自動で送ります）';
+    // 目標までのカウントダウン
+    const g = myGoal(), now = { knock: Number($('knock').textContent), face: face, apo: counts['アポ'] || 0 };
+    $('goalEdit').style.display = name ? 'block' : 'none';
+    $('goalEdit').textContent = g ? '🎯 今日の目標を変える' : '🎯 今日の目標を入れる';
+    [['knock', 'k'], ['face', 't'], ['apo', 'a']].forEach(([id, k]) => {
+      const el = $('l-' + id);
+      if (!g) { el.innerHTML = ''; return; }
+      const left = g[k] - now[id], w = g[k] ? Math.min(100, now[id] / g[k] * 100) : 100;
+      el.innerHTML = (left > 0 ? 'あと <span class="n">' + left + '</span>' : '<span class="done">達成！🎉</span>') +
+        '<span class="bar"><i style="width:' + w + '%"></i></span><span class="g">目標 ' + g[k] + '</span>';
+    });
   }
 
   function record(result) {
     const name = $('name').value;
     if (!name) { $('msg').textContent = '名前を選んでください'; return; }
     if (busy) return;
+    if (!myGoal()) { openGoal(false); return; }
     queue.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), name: name, result: result, ts: Date.now() });
     saveQueue();
     $('msg').textContent = '記録しました：' + result;
@@ -137,6 +229,7 @@
 
   // 未送信をまとめて送る。送れた分だけ消す（同じ記録は二重に入らない）
   function flush() {
+    sendGoal();
     if (sending || !queue.length) return;
     sending = true;
     const batch = queue.slice(0, 50);
@@ -167,7 +260,7 @@
     if (!navigator.onLine) { $('msg').textContent = '電波がない時は、送信済みの記録は取り消せません'; return; }
     setBusy(true, '取り消し中…');
     google.script.run
-      .withSuccessHandler(c => { setBusy(false); sent = c; render(); $('msg').textContent = '取り消しました'; })
+      .withSuccessHandler(c => { setBusy(false); onToday(c); $('msg').textContent = '取り消しました'; })
       .withFailureHandler(e => { setBusy(false); $('msg').textContent = 'エラー: ' + e.message; })
       .tUndoLast(name);
   }
@@ -182,7 +275,7 @@
 
   function loadToday() {
     if (!$('name').value) return render();
-    google.script.run.withSuccessHandler(c => { sent = c; render(); }).withFailureHandler(render).tGetToday($('name').value);
+    google.script.run.withSuccessHandler(onToday).withFailureHandler(() => { render(); if (!myGoal()) openGoal(false); }).tGetToday($('name').value);
   }
 
   google.script.run.withSuccessHandler(cfg => {
@@ -206,6 +299,9 @@
     loadToday();
   };
   $('undo').onclick = undo;
+  $('goalEdit').onclick = () => openGoal(true);
+  $('goalOk').onclick = setGoal;
+  $('goalNo').onclick = closeGoal;
   window.addEventListener('online', flush);
   setInterval(flush, 20000);
   // 開きっぱなしでも、日付が変わったら今日の数字に切り替える（0時に0へ）
