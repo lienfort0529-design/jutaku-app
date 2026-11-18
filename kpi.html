@@ -143,7 +143,7 @@
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>KPI・ランキング</b></div></header>
   <div class="wrap">
     <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="sales">成約一覧</button>
-      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><button data-v="input" class="ad hide">入力</button><button data-v="member" class="ad hide">メンバー</button></div>
+      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
     <div id="view"></div>
@@ -168,6 +168,8 @@
   const MEDAL = ['🥇', '🥈', '🥉'];
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
 
+  // 入力・メンバーは同じ画面を別の項目として開く（?page=input / member、ホーム画面版は input.html / member.html）
+  const MODE = '';
   let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null, I = null, iSheet = 'クローザー', MB = null, mTable = '叩き';
 
   // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
@@ -681,19 +683,39 @@
     const box = $('adminBox');
     if (D.admin) {
       box.innerHTML = '<button id="adOut">管理者をやめる</button>';
-      $('adOut').onclick = () => { store('jAdmin', null); store('kpiCache0a', null); store('kpiCache1a', null); view = 'rank'; load(); };
+      $('adOut').onclick = () => { store('jAdmin', null); store('kpiCache0a', null); store('kpiCache1a', null); if (MODE) { D.admin = false; I = MB = null; render(); return; } view = 'rank'; load(); };
       return;
     }
     box.innerHTML = '<button id="adIn">管理者</button><div id="adForm" class="hide" style="margin-top:8px"><input id="adPass" type="password" placeholder="管理者の合言葉"><button id="adGo">入る</button></div>';
     $('adIn').onclick = () => { $('adForm').classList.remove('hide'); $('adPass').focus(); };
-    $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); load(); };
+    $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); if (MODE) modeLoad(); else load(); };
   }
 
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
   document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); S = null; load(); if (view === 'sales') loadSales(); });
   $('ssCancel').onclick = () => $('saleSheet').classList.remove('open');
   $('ssSave').onclick = saveSale;
-  load();
+  // 入力・メンバーの画面：KPI の数字は読まず、管理者の合言葉があればその表だけ読む
+  function modeLoad() {
+    D = { admin: !!store('jAdmin') };
+    if (!D.admin) { render(); return; }
+    I = MB = null; render();
+    google.script.run.withSuccessHandler(r => { if (MODE === 'input') I = r; else MB = r; $('msg').textContent = ''; render(); })
+      .withFailureHandler(e => {
+        if (/管理者/.test(e.message)) { store('jAdmin', null); D.admin = false; $('msg').textContent = '管理者の合言葉が違います'; render(); }
+        else $('msg').textContent = 'エラー: ' + e.message;
+      })[MODE === 'input' ? 'inputData' : 'memberData'](store('jAdmin') || '');
+  }
+  if (MODE) {
+    view = MODE;
+    document.querySelector('.tabs').classList.add('hide'); $('mon').classList.add('hide');
+    const r0 = render;
+    render = () => {
+      if (!D.admin) { $('view').innerHTML = '<div class="note">管理者だけが使えます。下の「管理者」から合言葉を入れてください</div>'; renderAdmin(); return; }
+      r0();
+    };
+    modeLoad();
+  } else load();
 </script>
 </body>
 </html>
