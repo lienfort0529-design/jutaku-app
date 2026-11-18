@@ -106,53 +106,192 @@
   .card.pre { border-left: 6px solid #e67e22; } .card.done { border-left: 6px solid #27ae60; }
   .mon .e i { font-style: normal; }
   .subh { margin: 16px 0 6px; font-weight: 700; color: #8e44ad; }
+  /* 予定の写真（備考の下）。小さく並べ、押すと大きく */
+  .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+  .ph { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #e3e8f0; border: 0; padding: 0; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph .x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; }
+  .phAdd { aspect-ratio: 1; border-radius: 10px; border: 2px dashed #2a56a8; background: none; color: #2a56a8; font-size: 13px; font-weight: 700; }
+  #phView { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.9); align-items: center; justify-content: center; }
+  #phView.open { display: flex; } #phView img { max-width: 100%; max-height: 100%; }
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<script>
+  // 明るい・暗い：端末の設定に合わせる。右上のボタンで切り替えると、その端末に覚える（lfTheme）
+  (function () { try { var t = localStorage.getItem('lfTheme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
 <style>
-  /* 住宅設備アプリ共通のデザイン。色は Lien Fort（lienfort.co.jp）に合わせる。各画面の style より後に読むので上書きになる */
-  :root { --ink: #18202e; --blue: #2a56a8; --sub: #4b5567; --line: #e3e8f0; --bg: #f6f8fb; --pale: #eef2f9;
-          --en: Oswald, "Arial Narrow", sans-serif; }
+  /* 住宅設備アプリ共通のデザイン（2026-11-18 作り直し：明るい・暗い、パソコンは左にメニュー）。
+     色は Lien Fort（lienfort.co.jp）の紺と青。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --btn: #2a56a8; --sub: #5b6577; --line: #e2e7ef; --bg: #f3f5f9; --pale: #eef2f9;
+          --surface: #fff; --surface2: #f6f8fb; --track: #e9edf3; --bar: #18202e; --chip: #18202e; --chipInk: #fff;
+          --veil: rgba(243,245,249,.72); --shadow: 0 1px 2px rgba(24,32,46,.06), 0 8px 24px rgba(24,32,46,.05);
+          --pend: #fff3cd; --pendInk: #7a5b00; --goodBg: #eafaf0; --badBg: #fdecea;
+          --en: Oswald, "Arial Narrow", sans-serif; --num: Inter, "Hiragino Sans", sans-serif; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+
   body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
          font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
-  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 10px 14px;
-            background: var(--ink); color: #fff; }
+
+  /* 上の帯 */
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 12px 14px;
+            background: var(--bar); color: #fff; }
   .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
-             border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; text-decoration: none; font-size: 24px; }
-  .lf-t small { display: block; font-family: var(--en); font-size: 10px; letter-spacing: .3em; color: #9fb4dd; }
-  .lf-t b { font-size: 17px; letter-spacing: .05em; }
+             border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px !important; letter-spacing: .3em; color: #8fa6cf !important; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; color: #fff; }
+  .lf-theme { flex: none; margin-left: auto; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+              border: 1px solid rgba(255,255,255,.18); border-radius: 10px; background: rgba(255,255,255,.06); color: #fff; padding: 0; cursor: pointer; }
+  .lf-theme svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .lf-bar .who ~ .lf-theme, .lf-bar .lf-theme ~ .who { margin-left: 8px; }
 
-  select, input, textarea { border: 1px solid var(--line) !important; color: var(--ink); }
-  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.3); border-color: var(--blue) !important; }
-  h2 { letter-spacing: .03em; }
+  /* 入力欄 */
+  select, input, textarea { background: var(--surface) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.35); border-color: var(--blue) !important; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--btn); }
+  h2, h3, .card h3 { letter-spacing: .03em; color: var(--ink) !important; }
+  label, .note, .sub, small, #msg, .legend, .count, .calc, .coord, .state, .card dt, .gcard p { color: var(--sub) !important; }
 
-  /* 今日の数字 */
-  .summary { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  /* 面（カード・表・パネル） */
+  .card, .summary, .summary > div, .tbl, .gcard, .sheet .in, #close, .visit, .panel, .find, .fab, .showBtn,
+  td.d, .mon td, .shd td:not(.c), .checks label, #sale .checks label, .sheet .kinds label, .names button, #pickList button {
+    background: var(--surface) !important; border-color: var(--line) !important; color: var(--ink); }
+  .card, .tbl, .summary > div, .summary, .gcard, .visit { border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--shadow) !important; }
+  .card summary, .req { color: var(--blue) !important; }
   .summary div { font-size: 12px; color: var(--sub); }
-  .summary b { font-family: var(--en); font-weight: 500; font-size: 30px !important; color: var(--ink); }
+  .summary b, .big, .rk .v, .v, .gy td b { font-family: var(--num) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .summary b { font-weight: 800; font-size: 28px !important; color: var(--ink); }
+  .big { font-weight: 800 !important; color: var(--ink) !important; }
+  .bar, .left .bar { background: var(--track) !important; }
+  .bar i, .left .bar i { background: var(--btn) !important; } .bar i.ok { background: #27ae60 !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--btn) !important; }
+  td.s.block { background: var(--pale) !important; }
+  .legend span:first-child i { background: var(--btn) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+  .st { background: var(--pale) !important; color: var(--ink) !important; }
+  .st.shoho { background: #8e44ad !important; color: #fff !important; }
+  .st.x { background: var(--badBg) !important; color: #e06b5f !important; }
+  #pending { background: var(--pend) !important; color: var(--pendInk) !important; }
+  .checks label, #sale .checks label, .sheet .kinds label { color: var(--ink) !important; }
+
+  /* 表（KPI） */
+  table { color: var(--ink); }
+  th { background: var(--surface2) !important; color: var(--sub) !important; border-color: var(--line) !important; }
+  td { border-color: var(--line) !important; }
+  .tbl td:first-child { background: var(--surface) !important; }
+  .tbl th:first-child, tr.total td { background: var(--surface2) !important; }
+  td.good { background: var(--goodBg) !important; } td.bad { background: var(--badBg) !important; }
 
   /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
-  button.r { border-radius: 12px !important; box-shadow: 0 2px 0 rgba(0,0,0,.12); letter-spacing: .03em; }
-  .undo, .listbtn, .nav button, .btns > *, .cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
-  .listbtn, .btns > *, .btns .map { color: var(--blue) !important; }
-  .ok { background: var(--blue) !important; color: #fff !important; }
-  .add { border-color: var(--blue) !important; color: var(--blue) !important; background: #fff !important; }
-  .tabs button { border: 1px solid var(--line) !important; background: #fff !important; color: var(--sub) !important; }
-  .tabs button.on { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
-  .choice button.on { background: var(--ink) !important; border-color: var(--ink) !important; }
+  button { font-family: inherit; }
+  button.r { border-radius: 14px !important; box-shadow: 0 2px 0 rgba(0,0,0,.14); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel, .seg button, .gyreset, .admin button, .opts button, .two button, .links button,
+  .sides button, .close-btn, .choice button, .kinds button, .pc button, #goalEdit, .del, .add {
+    background: var(--surface) !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map, .links button, .two button, #goalEdit, .close-btn { color: var(--blue) !important; }
+  .del { color: #e06b5f !important; border-color: rgba(224,107,95,.5) !important; }
+  .add { border: 2px dashed var(--blue) !important; color: var(--blue) !important; }
+  .ok, .acts .ok, .gcard .go, #close .ok { background: var(--btn) !important; color: #fff !important; }
+  .tabs { gap: 6px !important; }
+  .tabs button, .seg button { border-radius: 999px !important; border: 1px solid var(--line) !important; background: var(--surface) !important; color: var(--sub) !important; font-weight: 600; }
+  .tabs button.on, .seg button.on, .opts button.on, .choice button.on, .sides button.on, .showBtn.on {
+    background: var(--chip) !important; border-color: var(--chip) !important; color: var(--chipInk) !important; }
+  .kinds button.on { background: #8e44ad !important; border-color: #8e44ad !important; color: #fff !important; }
+  #clockBtn { background: var(--pale) !important; color: var(--ink) !important; }
+  #clockBtn.on { background: var(--badBg) !important; color: #e06b5f !important; }
+  #placeBtn { background: var(--surface) !important; }
+  #findList button { color: var(--ink) !important; border-top-color: var(--line) !important; }
+  .fab, .fab * { color: var(--blue) !important; } #layerBtn, #findBtn, .showBtn { color: var(--ink) !important; }
+  #areaChip { background: var(--surface) !important; color: var(--ink) !important; } #areaChip button { background: var(--pale) !important; color: var(--ink) !important; }
 
-  /* カード・表 */
-  .card, td.d { border: 1px solid var(--line) !important; box-shadow: 0 1px 2px rgba(24,32,46,.05); }
-  .card summary, .req { color: var(--blue) !important; }
-  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
-  td.s.free { background: var(--blue) !important; }
-  .legend span:first-child i { background: var(--blue) !important; }
-  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+  /* ランキング：1〜3位は丸い数字（金・銀・銅） */
+  .rk .n { font-family: var(--num); }
+  .rk.m1 .n, .rk.m2 .n, .rk.m3 .n { width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                    font-size: 13px; font-weight: 800; }
+  .rk.m1 .n { background: #e9c46a; color: #18202e !important; }
+  .rk.m2 .n { background: #cfd5de; color: #18202e !important; }
+  .rk.m3 .n { background: #dcae86; color: #18202e !important; }
+  /* 目立たせるカード（チーム売上など） */
+  .card.feature { background: #18202e !important; border-color: #18202e !important; color: #fff; }
+  :root[data-theme="dark"] .card.feature { background: #1d2a44 !important; border-color: #2c3d5f !important; }
+  .card.feature h3, .card.feature .big { color: #fff !important; }
+  .card.feature .sub, .card.feature h3 small { color: #b8c4d8 !important; }
+  .card.feature .bar { background: rgba(255,255,255,.14) !important; } .card.feature .bar i { background: #5b8def !important; }
 
   /* 重なる画面（入力・一覧など）と読み込み中 */
   .sheet, #sale, #list, #pick { background: var(--bg) !important; }
   #pickList button { border-color: var(--line) !important; }
-  .spinner { border-top-color: var(--blue) !important; }
+  #overlay { background: var(--veil) !important; color: var(--ink); }
+  #goalBox { background: rgba(0,0,0,.55) !important; }
+  .spinner { border-color: var(--track) !important; border-top-color: var(--btn) !important; }
+
+  /* パソコン：左にメニュー（#lfSide は下のスクリプトで作る） */
+  #lfSide { display: none; }
+  @media (min-width: 1024px) {
+    body.lf-side { padding-left: 264px !important; padding-right: 32px !important; }
+    body.lf-side .lf-bar { margin: 0 -32px 20px; padding-left: 32px; padding-right: 32px; }
+    body.lf-side .lf-back { display: none; }
+    body.lf-side > .hero { margin-left: -32px !important; margin-right: -32px !important; padding-left: 40px !important; }
+    #lfSide { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: 232px; z-index: 40; flex-direction: column; gap: 22px;
+              padding: 26px 14px; box-sizing: border-box; overflow-y: auto; background: #111824; color: #eef2f8; }
+    #lfSide .lg { display: block; padding: 0 10px; text-decoration: none; color: #eef2f8; }
+    #lfSide .lg small { display: block; font-family: var(--en); font-size: 11px; letter-spacing: .35em; color: #7fa2e8; }
+    #lfSide .lg b { font-family: "Shippori Mincho B1", serif; font-size: 22px; letter-spacing: .12em; }
+    #lfSide nav { display: flex; flex-direction: column; gap: 2px; }
+    #lfSide nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #b8c4d8; text-decoration: none; font-size: 14px; }
+    #lfSide nav a:hover { background: #1a2333; color: #fff; }
+    #lfSide nav a.on { background: #2a56a8; color: #fff; font-weight: 700; }
+    #lfSide nav a span { font-family: var(--en); font-size: 9px; letter-spacing: .2em; color: #6f82a6; width: 58px; flex: none; }
+    #lfSide nav a.on span { color: #c9d8f7; }
+  }
 </style>
+<script>
+  // 右上の明るい・暗いボタンと、パソコンの左メニュー
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.documentElement;
+    var dark = function () { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+    var SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+    var MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    var host = document.querySelector('.lf-bar') || document.querySelector('.hero');
+    if (host) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'lf-theme';
+      var paint = function () { b.innerHTML = dark() ? SUN : MOON; b.setAttribute('aria-label', dark() ? '明るい表示にする' : '暗い表示にする'); };
+      b.onclick = function () { var t = dark() ? 'light' : 'dark'; root.setAttribute('data-theme', t); try { localStorage.setItem('lfTheme', t); } catch (e) {} paint(); };
+      paint();
+      if (host.classList.contains('hero')) { b.style.position = 'absolute'; b.style.top = '18px'; b.style.right = '16px'; b.style.zIndex = '2'; host.appendChild(b); }
+      else host.insertBefore(b, host.querySelector('.who'));
+    }
+    // 地図の画面は全面を地図に使うので左メニューを出さない
+    if (document.getElementById('map')) return;
+    var gh = /github\.io$/.test(location.hostname);
+    var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
+    var base = a0 ? a0.href.split('?')[0] : '';
+    var MAP = 'map.html';
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['closer', 'クローザー入力', 'CLOSER'], ['tataki', '叩きカウンター', 'COUNTER'], ['ap', '催事のお客様登録', 'EVENT'],
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['input', '入力', 'INPUT'], ['member', 'メンバー', 'MEMBER'], ['map', '営業マップ', 'MAP']];
+    var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
+    var title = (document.querySelector('.lf-t b') || {}).textContent || '';
+    var file = location.pathname.split('/').pop();
+    var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var side = document.createElement('aside');
+    side.id = 'lfSide';
+    side.innerHTML = '<a class="lg" target="_top" href="' + esc(href('menu')) + '"><small>LIEN FORT</small><b>住宅設備</b></a><nav>' + PAGES.map(function (p) {
+      var on = gh ? file === p[0] + '.html' : title.replace('催事 お客様登録', '催事のお客様登録') === p[1];
+      return '<a target="_top" class="' + (on ? 'on' : '') + '" href="' + esc(href(p[0])) + '"><span>' + p[2] + '</span>' + p[1] + '</a>';
+    }).join('') + '</nav>';
+    document.body.appendChild(side);
+    document.body.classList.add('lf-side');
+  });
+</script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -191,6 +330,7 @@
   </div>
 
   <!-- 予定の入力 -->
+  <div id="phView"><img id="phBig" alt="写真"></div>
   <div class="sheet" id="form">
     <h2 id="formTitle"></h2>
     <div class="grid2">
@@ -207,6 +347,8 @@
     <label>担当クローザー（あとからでも入れられます）</label><select id="fCl"></select>
     <div id="fDetail"></div>
     <label>備考</label><textarea id="fMemo" rows="3"></textarea>
+    <label>写真（5枚まで）</label><div class="photos" id="fPhotos"></div>
+    <input type="file" id="fPhotoIn" accept="image/*" multiple class="hide">
     <div class="note"><span class="req">*</span> は新しく入れるときに必須</div>
     <div class="actions"><button class="cancel" id="cancelForm">やめる</button><button class="ok" id="saveForm">保存</button></div>
     <button class="del hide" id="delForm">この予定を消す</button>
@@ -630,6 +772,7 @@
     checks('fProduct', cfg.options.products, a && a.product);
     setAp('fAp', 'fApOther', a ? a.ap : '');
     renderDetail(a);
+    renderPhotos();
     document.querySelectorAll('#form .nr').forEach(x => x.classList.toggle('hide', !!a));
     $('delForm').classList.toggle('hide', !a);
     $('form').classList.add('open');
@@ -651,6 +794,69 @@
     if (view === 'list') listDay = a.date;
     call('ySave', [a], '保存中…', () => { $('form').classList.remove('open'); $('msg').textContent = '保存しました：' + (a.kind === 'shoho' ? '初訪 ' : '') + label(a.date) + ' ' + (a.start || a.time) + ' ' + a.customer; });
   }
+  // ===== 予定の写真 =====
+  const PHOTO_MAX = 5, photoCache = {};
+  function renderPhotos() {
+    const box = $('fPhotos'), a = editing;
+    box.innerHTML = '';
+    if (!a) { box.innerHTML = '<div class="note" style="grid-column:1/-1">保存したあと、もう一度開くと写真を貼れます</div>'; return; }
+    (a.photos || []).forEach(fid => {
+      const b = document.createElement('div');
+      b.className = 'ph';
+      b.innerHTML = '<img alt="写真"><button class="x" aria-label="この写真を消す">✕</button>';
+      const img = b.querySelector('img');
+      const put = url => { img.src = url; img.onclick = () => { $('phBig').src = url; $('phView').classList.add('open'); }; };
+      if (photoCache[fid]) put(photoCache[fid]);
+      else google.script.run.withSuccessHandler(url => { photoCache[fid] = url; put(url); }).withFailureHandler(() => { img.alt = '読めません'; }).yPhoto(a.id, fid);
+      b.querySelector('.x').onclick = () => {
+        if (!confirm('この写真を消しますか？')) return;
+        call('yPhotoDelete', [a.id, fid], '消しています…', afterPhoto);
+      };
+      box.appendChild(b);
+    });
+    if ((a.photos || []).length < PHOTO_MAX) {
+      const add = document.createElement('button');
+      add.className = 'phAdd'; add.type = 'button'; add.textContent = '＋ 写真';
+      add.onclick = () => $('fPhotoIn').click();
+      box.appendChild(add);
+    }
+  }
+  function afterPhoto() {
+    const id = editing && editing.id;
+    editing = data.appts.concat(data.shoho || []).find(x => x.id === id) || editing;
+    renderPhotos();
+  }
+  // 写真は長い辺 1600px・JPEG にしてから送る（電波が弱くても送れるように）
+  function shrink(file) {
+    return new Promise((ok, ng) => {
+      const img = new Image(), u = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = () => { URL.revokeObjectURL(u); ng(new Error('この写真は読み込めません')); };
+      img.src = u;
+    });
+  }
+  $('fPhotoIn').onchange = async e => {
+    const files = [...e.target.files].slice(0, PHOTO_MAX - ((editing && editing.photos) || []).length);
+    e.target.value = '';
+    for (let i = 0; i < files.length; i++) {
+      let url;
+      try { url = await shrink(files[i]); } catch (err) { alert(err.message); continue; }
+      setBusy(true, '写真を保存中…（' + (i + 1) + '/' + files.length + '）');
+      const ok = await new Promise(done => google.script.run
+        .withSuccessHandler(r => { data = r; render(); afterPhoto(); done(true); })
+        .withFailureHandler(err => { alert(err.message); done(false); })
+        .yPhotoAdd(editing.id, url, ...range()));
+      if (!ok) break;
+    }
+    setBusy(false);
+  };
+  $('phView').onclick = () => $('phView').classList.remove('open');
+
   function delForm() {
     if (!confirm(editing.customer + ' の予定を消しますか？' + (editing.result ? '\n（入っている結果「' + editing.result + '」も消えます）' : ''))) return;
     call('yDelete', [editing.id], '消しています…', () => $('form').classList.remove('open'));
