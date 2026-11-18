@@ -275,7 +275,7 @@
 <body>
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>KPI・ランキング</b></div></header>
   <div class="wrap">
-    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="sales">成約一覧</button>
+    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="sales">成約一覧</button><button data-v="saiji">催事</button>
       <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
@@ -322,10 +322,12 @@
   }
 
   function render() {
+    if (!D) return; // KPI の数字が届く前に押されたとき
     document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
     document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
+    $('mon').classList.toggle('hide', view === 'saiji'); // 催事は自分の期間（今月・先月・全期間）
     $('view').innerHTML = '';
-    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
+    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, saiji: renderSaiji, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
     renderAdmin();
   }
 
@@ -522,6 +524,112 @@
     }
     if (!m.children.length) m.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの目標・数字はまだありません</div>');
     $('view').appendChild(m);
+  }
+
+  // ===== 催事（全員）：催事日報と催事顧客管理から、チームの歩留まり・会場・人・日ごと・月の目標 =====
+  let SJ = null, sjPer = 'this';
+  function loadSaiji() {
+    try { SJ = JSON.parse(store('saijiCache') || 'null'); } catch (e) {}
+    if (SJ && !SJ.met) SJ = null; // 前の形の保存（商談・成約の区分なし）は使わない
+    render();
+    google.script.run.withSuccessHandler(r => { SJ = r; store('saijiCache', JSON.stringify(r)); if (view === 'saiji') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; if (view === 'saiji' && !SJ) $('view').innerHTML = '<div class="note">エラー: ' + esc(e.message) + '</div>'; }).saijiData();
+  }
+  function sjYm() {
+    if (sjPer === 'all') return '';
+    const [y, m] = SJ.today.split('-').map(Number), d = new Date(y, m - 1 - (sjPer === 'prev' ? 1 : 0), 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  const sjNum = x => Number(String(x == null ? '' : x).replace(/[,%¥円\s]/g, '')) || 0;
+  function sjTable(title, head, rows, sub) {
+    const c = card(title, sub);
+    c.style.gridColumn = '1 / -1';
+    if (!rows.length) { c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>'); return c; }
+    c.insertAdjacentHTML('beforeend', '<div class="tbl"><table><tr>' + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
+      rows.map(r => '<tr>' + r.map(x => '<td>' + esc(x) + '</td>').join('') + '</tr>').join('') + '</table></div>');
+    return c;
+  }
+  function sjChart(title, days, color, ym) {
+    const c = card(title);
+    let keys = Object.keys(days).sort();
+    if (ym) { const [y, m] = ym.split('-').map(Number), last = new Date(y, m, 0).getDate(); keys = [...Array(last)].map((_, i) => ym + '-' + String(i + 1).padStart(2, '0')); }
+    if (!keys.length || !Object.keys(days).length) { c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>'); return c; }
+    const max = Math.max(...keys.map(k => days[k] || 0), 1), W = 310, H = 120, bw = W / keys.length;
+    let svg = '<svg viewBox="0 0 ' + W + ' ' + (H + 16) + '" preserveAspectRatio="none">';
+    keys.forEach((k, i) => {
+      const v = days[k] || 0, h = v / max * H, d = Number(k.slice(8));
+      svg += '<rect x="' + (i * bw + 1) + '" y="' + (H - h) + '" width="' + Math.max(1, bw - 2) + '" height="' + h + '" rx="1.5" fill="' + color + '"><title>' + k.slice(5).replace('-', '/') + ' ' + v + '</title></rect>';
+      if (ym ? (d === 1 || d % 5 === 0) : (i === 0 || i === keys.length - 1)) svg += '<text x="' + ((i + 0.5) * bw) + '" y="' + (H + 13) + '" font-size="9" text-anchor="middle" fill="#888">' + (ym ? d : k.slice(5).replace('-', '/')) + '</text>';
+    });
+    c.insertAdjacentHTML('beforeend', svg + '</svg><div class="sub">一番多い日 ' + max + '・合計 ' + keys.reduce((a, k) => a + (days[k] || 0), 0) + '</div>');
+    return c;
+  }
+  function renderSaiji() {
+    if (!SJ) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    [['this', '今月'], ['prev', '先月'], ['all', '全期間']].forEach(([k, t]) => {
+      const b = document.createElement('button'); b.textContent = t; b.className = sjPer === k ? 'on' : '';
+      b.onclick = () => { sjPer = k; render(); }; seg.appendChild(b);
+    });
+    $('view').appendChild(seg);
+    const ym = sjYm(), inP = d => !ym || String(d || '').startsWith(ym), CI = { date: 1, venue: 2, cc: 7, qp: 8, ap: 9, cl: 10, status: 11, price: 18 };
+    const NP = SJ.nippo.filter(r => inP(r.date)), col = (rows, name) => { const i = SJ.nhead.indexOf(name); return i < 0 ? 0 : rows.reduce((a, r) => a + sjNum(r.d[i]), 0); };
+    const CU = SJ.cust.filter(c => inP(c.v[CI.date])), isMet = c => SJ.met.includes(c.v[CI.status]), isWon = c => SJ.won.includes(c.v[CI.status]);
+    const sum = l => l.filter(isWon).reduce((a, c) => a + sjNum(c.v[CI.price]), 0);
+    const T = { dist: col(NP, 'キャッチ配布数'), catch: col(NP, 'キャッチ成功数'), seat: col(NP, '着座数'), apo: CU.length, met: CU.filter(isMet).length, won: CU.filter(isWon).length, sales: sum(CU) };
+    const g = document.createElement('div');
+    g.className = 'grid';
+    // 月の目標
+    if (ym) {
+      const G = (SJ.goals || {})[ym] || {}, label = Number(ym.slice(5)) + '月';
+      g.appendChild(goalCard(label + ' 催事 アポ', T.apo, G.apo, v => v == null ? '-' : v + '件'));
+      g.appendChild(goalCard(label + ' 催事 成約', T.won, G.won, v => v == null ? '-' : v + '件'));
+      g.appendChild(goalCard(label + ' 催事 売上', T.sales, G.sales, yen)).classList.add('feature');
+      const f = card(label + 'の目標を入れる', '全員が入れられます');
+      f.insertAdjacentHTML('beforeend', '<div class="gyin"><span>アポ目標（件）</span><input id="sgApo" type="number" inputmode="numeric" min="0" value="' + (G.apo || '') + '">' +
+        '<span>成約目標（件）</span><input id="sgWon" type="number" inputmode="numeric" min="0" value="' + (G.won || '') + '">' +
+        '<span>売上目標（円）</span><input id="sgSales" type="number" inputmode="numeric" min="0" style="width:140px" value="' + (G.sales || '') + '"></div><button class="gyreset" id="sgSave" style="margin-top:10px">保存</button>');
+      g.appendChild(f);
+    }
+    // 歩留まり
+    const fun = card('チームの歩留まり', ym ? Number(ym.slice(5)) + '月' : '全期間');
+    const steps = [['キャッチ配布', T.dist, null], ['キャッチ成功', T.catch, rate(T.catch, T.dist)], ['着座', T.seat, rate(T.seat, T.catch)], ['アポ', T.apo, rate(T.apo, T.seat)],
+      ['商談', T.met, rate(T.met, T.apo)], ['成約', T.won, rate(T.won, T.met)]];
+    fun.insertAdjacentHTML('beforeend', '<table class="gy"><tr><th></th><th>数</th><th>前からの率</th></tr>' +
+      steps.map(s => '<tr><td>' + s[0] + '</td><td><b>' + s[1] + '</b></td><td>' + (s[2] == null ? '' : pct(s[2])) + '</td></tr>').join('') +
+      '<tr><td>売上</td><td colspan="2"><b>' + yen(T.sales) + '</b></td></tr></table><div class="sub">配布〜着座は日報、アポ〜成約は催事顧客管理（獲得日の月）。商談＝現調・見積より先に進んだ人</div>');
+    g.appendChild(fun);
+    // 日ごとの推移
+    const apoDays = {}, seatDays = {}, si = SJ.nhead.indexOf('着座数');
+    CU.forEach(c => { if (c.v[CI.date]) apoDays[c.v[CI.date]] = (apoDays[c.v[CI.date]] || 0) + 1; });
+    NP.forEach(r => { seatDays[r.date] = (seatDays[r.date] || 0) + (si < 0 ? 0 : sjNum(r.d[si])); });
+    g.appendChild(sjChart('日ごとのアポ', apoDays, '#2a56a8', ym));
+    g.appendChild(sjChart('日ごとの着座', seatDays, '#16a085', ym));
+    // 会場ごと
+    const venues = [...new Set(NP.map(r => r.venue).concat(CU.map(c => c.v[CI.venue])))].filter(Boolean);
+    const vr = venues.map(v => {
+      const n = NP.filter(r => r.venue === v), c = CU.filter(x => x.v[CI.venue] === v), seat = col(n, '着座数');
+      return { v: v, row: [v, n.length, col(n, 'キャッチ配布数'), seat, c.length, pct(rate(c.length, seat)), c.filter(isMet).length, c.filter(isWon).length, yen(sum(c))], s: sum(c), a: c.length };
+    }).sort((a, b) => b.s - a.s || b.a - a.a);
+    g.appendChild(sjTable('会場ごと', ['会場', '日数', '配布', '着座', 'アポ', '着座アポ率', '商談', '成約', '売上'], vr.map(x => x.row)));
+    // 人ごと
+    const who = (i) => [...new Set(CU.map(c => c.v[i]).filter(Boolean))];
+    const ap = who(CI.ap).map(n => { const c = CU.filter(x => x.v[CI.ap] === n); return { s: sum(c), a: c.length, row: [n, c.length, c.filter(isMet).length, c.filter(isWon).length, pct(rate(c.filter(isWon).length, c.length)), yen(sum(c))] }; }).sort((a, b) => b.a - a.a || b.s - a.s);
+    g.appendChild(sjTable('AP（アポを取った人）', ['名前', 'アポ', '商談', '成約', 'アポ成約率', '売上'], ap.map(x => x.row)));
+    const cl = who(CI.cl).map(n => { const c = CU.filter(x => x.v[CI.cl] === n), m = c.filter(isMet).length, w = c.filter(isWon).length; return { s: sum(c), row: [n, c.length, m, w, pct(rate(w, m)), yen(sum(c))] }; }).sort((a, b) => b.s - a.s);
+    g.appendChild(sjTable('CL（クローザー）', ['名前', '担当', '商談', '成約', '成約率', '売上'], cl.map(x => x.row)));
+    [['CC（キャッチャー）', CI.cc], ['QP（アンケート）', CI.qp]].forEach(([t, i]) => {
+      const r = who(i).map(n => { const c = CU.filter(x => x.v[i] === n); return { a: c.length, row: [n, c.length, c.filter(isWon).length, yen(sum(c))] }; }).sort((a, b) => b.a - a.a);
+      g.appendChild(sjTable(t, ['名前', 'アポ', '成約', '売上'], r.map(x => x.row)));
+    });
+    $('view').appendChild(g);
+    if ($('sgSave')) $('sgSave').onclick = () => {
+      document.body.classList.add('busy');
+      google.script.run.withSuccessHandler(r => { document.body.classList.remove('busy'); SJ = r; store('saijiCache', JSON.stringify(r)); $('msg').textContent = '目標を保存しました'; render(); })
+        .withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })
+        .saijiGoalSave(ym, { apo: $('sgApo').value, won: $('sgWon').value, sales: $('sgSales').value });
+    };
   }
 
   // ===== 成約一覧（全員が見る・管理者が状態を直す） =====
@@ -823,7 +931,7 @@
     $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); if (MODE) modeLoad(); else load(); };
   }
 
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'saiji' && !SJ) loadSaiji(); else if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
   document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); S = null; load(); if (view === 'sales') loadSales(); });
   $('ssCancel').onclick = () => $('saleSheet').classList.remove('open');
   $('ssSave').onclick = saveSale;
