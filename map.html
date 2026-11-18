@@ -39,7 +39,23 @@
   .del { width: 100%; margin-top: 4px; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #c0392b; background: #fff; color: #c0392b; }
   .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
          box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
-  #layerBtn { font-size: 13px; font-weight: 600; color: #18202e; }
+  #layerBtn, #findBtn { font-size: 13px; font-weight: 600; color: #18202e; }
+  /* 検索 */
+  .find { display: none; position: fixed; left: 10px; right: 10px; z-index: 15; background: #fff; border-radius: 14px; padding: 10px;
+          box-shadow: 0 4px 16px rgba(24,32,46,.22); }
+  .find.open { display: block; }
+  .find .bar { display: flex; gap: 6px; }
+  .find input { flex: 1; min-width: 0; }
+  .find .bar button { flex: none; padding: 0 14px; font-size: 15px; font-weight: 600; border-radius: 10px; border: 0; background: #2a56a8; color: #fff; }
+  .find .bar button.x { background: #eef2f9; color: #18202e; }
+  .find .note { font-size: 12px; color: #8a93a3; margin-top: 6px; }
+  #findList { max-height: 45vh; overflow-y: auto; margin-top: 6px; }
+  #findList button { display: block; width: 100%; text-align: left; padding: 10px 6px; border: 0; border-top: 1px solid #e3e8f0; background: none; font-size: 15px; color: #18202e; }
+  #findList button small { display: block; color: #8a93a3; font-size: 12px; margin-top: 2px; }
+  .spot { width: 22px; height: 22px; border-radius: 50%; border: 4px solid #e74c3c; background: rgba(231,76,60,.25); box-shadow: 0 0 0 2px #fff; }
+  .coord { font-size: 13px; color: #4b5567; margin-top: 4px; }
+  .links { display: flex; gap: 8px; margin-top: 12px; }
+  .links button { flex: 1; padding: 11px 0; font-size: 15px; font-weight: 600; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; }
   /* 左上：表示中の数と絞り込み */
   .showBtn { position: fixed; left: 10px; z-index: 5; padding: 8px 12px; border-radius: 18px; border: 1px solid #e3e8f0; background: #fff;
              box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 13px; font-weight: 600; color: #18202e; }
@@ -146,6 +162,7 @@
   <button class="showBtn" id="showBtn">表示</button>
   <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
   <button class="fab" id="layerBtn">写真</button>
+  <button class="fab" id="findBtn">検索</button>
   <div class="panel" id="panel">
     <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
     <div class="tags" id="tags"></div>
@@ -181,9 +198,18 @@
   <div class="sheet" id="view">
     <h2 id="viewTitle"></h2>
     <div class="sub" id="viewSub"></div>
+    <div class="coord" id="viewCoord"></div>
+    <div class="links"><button id="shareBtn">共有</button><button id="copyBtn">コピー</button><button id="gmapBtn">Googleマップ</button></div>
     <div class="actions"><button class="cancel" id="viewClose">閉じる</button><button class="ok" id="visitBtn">訪問を記録</button></div>
     <div id="visits"></div>
     <button class="del" id="delBtn">このピンを消す（置き間違い）</button>
+  </div>
+
+  <!-- 場所の検索（地名・住所・店名・座標・Googleマップのリンク） -->
+  <div class="find" id="find">
+    <div class="bar"><input id="findIn" placeholder="地名・住所・店名・座標" enterkeyhint="search"><button id="findGo">検索</button><button class="x" id="findClose">✕</button></div>
+    <div class="note" id="findNote">Googleマップのリンクや「33.59, 130.40」のような座標も使えます</div>
+    <div id="findList"></div>
   </div>
 
   <!-- 表示するピン（凡例も兼ねる） -->
@@ -258,6 +284,8 @@
     $('showBtn').style.top = (top + 10) + 'px';
     $('meBtn').style.top = (top + 10) + 'px';
     $('layerBtn').style.top = (top + 64) + 'px';
+    $('findBtn').style.top = (top + 118) + 'px';
+    $('find').style.top = (top + 8) + 'px';
   }
   window.addEventListener('resize', layout);
 
@@ -540,6 +568,7 @@
     const visited = Number(p.count) > 0 || queue.some(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id);
     $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　` + (Number(p.count) > 0 ? `訪問 ${p.count}回` : 'まだ訪問していません');
     $('delBtn').style.display = visited ? 'none' : '';
+    $('viewCoord').textContent = `座標：${(+p.lat).toFixed(6)}, ${(+p.lng).toFixed(6)}`;
     const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id && !q.arg.plan) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
       .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
     const draw = list => {
@@ -553,6 +582,74 @@
     if (!p.wait) run('mVisits', p.id).then(v => draw(mine.concat(v))).catch(e => { $('visits').innerHTML += `<div class="sub">履歴を読めません：${esc(e.message)}</div>`; });
   }
   $('viewClose').onclick = () => $('view').classList.remove('open');
+
+  // ===== 住所の共有・Googleマップ =====
+  const gmapUrl = p => `https://www.google.com/maps/search/?api=1&query=${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`;
+  const shareText = p => (p.address ? p.address + '\n' : '') + gmapUrl(p);
+  $('shareBtn').onclick = () => {
+    const p = form.pin;
+    if (navigator.share) navigator.share({ title: p.address || '営業マップのピン', text: shareText(p) }).catch(() => {});
+    else copyText(shareText(p));
+  };
+  $('copyBtn').onclick = () => copyText(shareText(form.pin));
+  $('gmapBtn').onclick = () => window.open(gmapUrl(form.pin), '_blank');
+  function copyText(t) {
+    const done = () => alert('コピーしました\n' + t);
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, () => prompt('コピーしてください', t));
+    else prompt('コピーしてください', t);
+  }
+
+  // ===== 場所の検索 =====
+  // 座標・Googleマップのリンクはその場で読み取る。地名・住所は国土地理院（API 経由）、店名や施設は OpenStreetMap（スマホから直接）
+  let spot = null;
+  $('findBtn').onclick = () => { $('find').classList.add('open'); $('findIn').focus(); };
+  $('findClose').onclick = () => { $('find').classList.remove('open'); if (spot) { spot.remove(); spot = null; } };
+  $('findGo').onclick = find;
+  $('findIn').onkeydown = e => { if (e.key === 'Enter') find(); };
+
+  function coordsIn(t) {
+    const m = t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/[?&](?:q|query|ll|center)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)
+      || t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/^\s*(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{2,3}\.\d+)\s*$/);
+    return m ? { lat: +m[1], lng: +m[2] } : null;
+  }
+
+  async function find() {
+    const q = $('findIn').value.trim();
+    if (!q) return;
+    $('findIn').blur();
+    const c = coordsIn(q);
+    if (c) return goSpot(c.lat, c.lng, q);
+    $('findList').innerHTML = '';
+    $('findNote').textContent = '探しています…';
+    const ctr = map.getCenter(), b = map.getBounds();
+    // まず今の地図のまわり（約30km）で探し、なければ全国から（コンビニなど同じ名前の店が近い順に出るように）
+    const nom = bounded => fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=jp&accept-language=ja&limit=15&q=' + encodeURIComponent(q) +
+      `&viewbox=${b.getWest() - 0.3},${b.getNorth() + 0.3},${b.getEast() + 0.3},${b.getSouth() - 0.3}&bounded=${bounded}`).then(r => r.json());
+    const osm = nom(1).then(a => a.length ? a : nom(0))
+      .then(a => a.map(x => ({ name: x.name || x.display_name.split(',')[0], sub: x.display_name.split(', ').slice(1).reverse().filter(y => y !== '日本' && !/^\d{3}-?\d{4}$/.test(y)).join(''), lat: +x.lat, lng: +x.lon })))
+      .catch(() => []);
+    const gsi = run('mSearch', q).catch(() => ({ results: [] }));
+    const [a, g] = await Promise.all([osm, gsi]);
+    if (g.lat) return goSpot(g.lat, g.lng, q); // Googleマップの短いリンク
+    const seen = new Set(), list = a.concat(g.results).filter(x => {
+      const k = x.lat.toFixed(4) + ',' + x.lng.toFixed(4);
+      return seen.has(k) ? false : seen.add(k);
+    }).map(x => Object.assign(x, { km: map.distance(ctr, [x.lat, x.lng]) / 1000 })).sort((x, y) => x.km - y.km).slice(0, 15);
+    $('findNote').textContent = list.length ? `${list.length}件（今の地図の中心から近い順）` : '見つかりませんでした。地名や住所を足してみてください';
+    $('findList').innerHTML = list.map(x => `<button>${esc(x.name)}<small>${esc(x.sub || '')}　${x.km < 1 ? Math.round(x.km * 1000) + 'm' : x.km.toFixed(1) + 'km'}</small></button>`).join('');
+    [...$('findList').children].forEach((el, i) => el.onclick = () => goSpot(list[i].lat, list[i].lng, list[i].name));
+  }
+
+  function goSpot(lat, lng, name) {
+    follow = false;
+    if (spot) spot.remove();
+    spot = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="spot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 2000 })
+      .bindPopup(`<b>${esc(name)}</b><br><a href="${gmapUrl({ lat, lng })}" target="_blank">Googleマップで開く</a>`).addTo(map);
+    map.setView([lat, lng], 17);
+    $('find').classList.remove('open');
+    $('findList').innerHTML = '';
+    $('findNote').textContent = 'Googleマップのリンクや「33.59, 130.40」のような座標も使えます';
+  }
 
   // ===== 共通 =====
   function busy(b, text) { if (text) $('overlayText').textContent = text; document.body.classList.toggle('busy', b); }
