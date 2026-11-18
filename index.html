@@ -24,6 +24,20 @@
   .mark { width: 24px; height: 24px; } /* Lien Fort のロゴ（lienfort.co.jp の暗い背景用の白い版） */
   h1 { margin: 20px 0 6px; font-family: "Shippori Mincho B1", "Hiragino Mincho ProN", serif; font-size: 32px; letter-spacing: .14em; }
   .hero p { margin: 0; font-family: Oswald, "Arial Narrow", sans-serif; font-size: 11px; letter-spacing: .3em; color: #9fb4dd; }
+  .goals { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 16px; }
+  .goals:empty { display: none; }
+  .gbox { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .gh { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .gh b { font-size: 15px; color: var(--ink); } .gh span { font-family: Oswald, "Arial Narrow", sans-serif; font-size: 10px; letter-spacing: .22em; color: var(--blue); }
+  .gl { display: grid; grid-template-columns: 44px 1fr; align-items: baseline; gap: 0 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .gh + .gl { border-top: 0; }
+  .gk { font-size: 13px; color: var(--sub); }
+  .gv { font-family: Inter, "Hiragino Sans", sans-serif; font-weight: 800; font-size: 22px; color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .gv em { font-style: normal; font-family: "Hiragino Sans", sans-serif; font-size: 12px; font-weight: 700; color: var(--blue); margin-right: 6px; }
+  .gv.done { color: #27ae60; } .gv.none { font-size: 14px; color: var(--sub); }
+  .gl small { grid-column: 2; font-size: 12px; font-family: Inter, "Hiragino Sans", sans-serif; }
+  .ghint { grid-column: 1 / -1; font-size: 12px; color: var(--sub); margin: 0 4px; }
+  @media (min-width: 760px) { .goals { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; } }
   .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
   .rows { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
   a.app { display: flex; align-items: center; gap: 14px; padding: 15px 14px; background: var(--surface); color: var(--ink); text-decoration: none; }
@@ -227,6 +241,7 @@
     <h1>住宅設備</h1>
     <p>HOUSING EQUIPMENT</p>
   </div>
+  <div class="goals" id="goals"></div>
   <div class="tiles">
     <a class="app main" href="yotei.html"><i><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></i>
       <div><span class="en">SCHEDULE</span><b>商談予定</b><small>枠表・予定一覧・月カレンダー</small></div><em>›</em></a>
@@ -249,5 +264,36 @@
       <div><span class="en">MEMBER</span><b>メンバー</b><small>名前の追加・変更・来月から外す</small></div><em>›</em></a>
   </div>
   <div class="note">ホーム画面に置くときは、この画面で「共有 → ホーム画面に追加」（Androidは「︙ → ホーム画面に追加」）。名前は「住宅設備」になります。</div>
+<script>
+  // 目標まであと（チーム・自分）。前に読んだ数字をすぐ出して、裏で最新を読む。自分の名前は KPI の「自分の成績」で選んだもの（kpiMe）
+  (function () {
+    var box = document.getElementById('goals');
+    var store = function (k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} };
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var yen = function (v) { return '¥' + Math.round(v).toLocaleString(); };
+    var num = function (v) { return Math.round(v).toLocaleString(); };
+    function line(label, v, goal, fmt, unit) {
+      v = Number(v) || 0;
+      if (!goal) return '<div class="gl"><span class="gk">' + label + '</span><b class="gv none">目標なし</b><small>' + fmt(v) + unit + '</small></div>';
+      var left = goal - v;
+      return '<div class="gl"><span class="gk">' + label + '</span>' + (left <= 0 ? '<b class="gv done">達成！</b>' : '<b class="gv"><em>あと</em>' + fmt(left) + unit + '</b>') +
+        '<small>' + fmt(v) + unit + ' ／ ' + fmt(goal) + unit + '</small></div>';
+    }
+    function draw(d) {
+      if (!d || !d.team) return;
+      var T = d.team, me = store('kpiMe') || '';
+      var h = '<div class="gbox"><div class="gh"><b>' + d.month + '月 チーム</b><span>TO GOAL</span></div>' +
+        line('売上', T.sales, T.salesGoal, yen, '') + line('件数', T.count, T.countGoal, num, '件') + line('アポ', T.apo, T.apoGoal, num, '件') + '</div>';
+      var c = me && d.closers.filter(function (x) { return x.name === me; })[0], a = me && d.apos.filter(function (x) { return x.name === me; })[0];
+      if (c || a) h += '<div class="gbox"><div class="gh"><b>' + esc(me) + '</b><span>MY GOAL</span></div>' +
+        (c ? line('売上', c.sales, c.salesGoal, yen, '') + line('件数', c.count, c.countGoal, num, '件') : '') + (a ? line('アポ', a.a, a.goal, num, '件') : '') + '</div>';
+      else h += '<div class="ghint">' + (me ? esc(me) + ' さんの目標はまだありません' : 'KPI・ランキングの「自分の成績」で名前を選ぶと、自分の「あと」も出ます') + '</div>';
+      box.innerHTML = h;
+    }
+    try { draw(JSON.parse(store('homeCache') || 'null')); } catch (e) {}
+    if (!window.google || !google.script || !google.script.run) return;
+    google.script.run.withSuccessHandler(function (r) { store('homeCache', JSON.stringify(r)); draw(r); }).withFailureHandler(function () {}).homeData();
+  })();
+</script>
 </body>
 </html>
