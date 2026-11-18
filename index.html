@@ -29,13 +29,17 @@
   .gbox { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); }
   .gh { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
   .gh b { font-size: 15px; color: var(--ink); } .gh span { font-family: Oswald, "Arial Narrow", sans-serif; font-size: 10px; letter-spacing: .22em; color: var(--blue); }
-  .gl { display: grid; grid-template-columns: 44px 1fr; align-items: baseline; gap: 0 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .gl { display: grid; grid-template-columns: 44px 1fr auto; align-items: baseline; gap: 0 10px; padding: 8px 0; border-top: 1px solid var(--line); }
   .gh + .gl { border-top: 0; }
   .gk { font-size: 13px; color: var(--sub); }
   .gv { font-family: Inter, "Hiragino Sans", sans-serif; font-weight: 800; font-size: 22px; color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
   .gv em { font-style: normal; font-family: "Hiragino Sans", sans-serif; font-size: 12px; font-weight: 700; color: var(--blue); margin-right: 6px; }
   .gv.done { color: #27ae60; } .gv.none { font-size: 14px; color: var(--sub); }
-  .gl small { grid-column: 2; font-size: 12px; font-family: Inter, "Hiragino Sans", sans-serif; }
+  .gl small { grid-column: 2 / 4; font-size: 12px; font-family: Inter, "Hiragino Sans", sans-serif; }
+  .gp { font-family: Inter, "Hiragino Sans", sans-serif; font-weight: 800; font-size: 15px; color: var(--blue); font-variant-numeric: tabular-nums; }
+  .gp.done { color: #27ae60; }
+  .gb { grid-column: 2 / 4; height: 6px; margin: 6px 0 2px; border-radius: 99px; background: var(--track); overflow: hidden; }
+  .gb i { display: block; height: 100%; border-radius: 99px; background: var(--btn); } .gb i.done { background: #27ae60; }
   .ghint { grid-column: 1 / -1; font-size: 12px; color: var(--sub); margin: 0 4px; }
   @media (min-width: 760px) { .goals { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; } }
   .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
@@ -274,9 +278,11 @@
     var num = function (v) { return Math.round(v).toLocaleString(); };
     function line(label, v, goal, fmt, unit) {
       v = Number(v) || 0;
-      if (!goal) return '<div class="gl"><span class="gk">' + label + '</span><b class="gv none">目標なし</b><small>' + fmt(v) + unit + '</small></div>';
-      var left = goal - v;
-      return '<div class="gl"><span class="gk">' + label + '</span>' + (left <= 0 ? '<b class="gv done">達成！</b>' : '<b class="gv"><em>あと</em>' + fmt(left) + unit + '</b>') +
+      if (!goal) return '<div class="gl"><span class="gk">' + label + '</span><b class="gv none">目標なし</b><span></span><small>' + fmt(v) + unit + '</small></div>';
+      var left = goal - v, p = v / goal, done = left <= 0 ? ' done' : '';
+      return '<div class="gl"><span class="gk">' + label + '</span>' + (done ? '<b class="gv done">達成！</b>' : '<b class="gv"><em>あと</em>' + fmt(left) + unit + '</b>') +
+        '<span class="gp' + done + '">' + (Math.floor(p * 1000) / 10) + '%</span>' +
+        '<div class="gb"><i class="' + done + '" style="width:' + Math.min(100, Math.max(0, p * 100)) + '%"></i></div>' +
         '<small>' + fmt(v) + unit + ' ／ ' + fmt(goal) + unit + '</small></div>';
     }
     function draw(d) {
