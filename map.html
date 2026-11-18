@@ -52,6 +52,14 @@
   #findList { max-height: 45vh; overflow-y: auto; margin-top: 6px; }
   #findList button { display: block; width: 100%; text-align: left; padding: 10px 6px; border: 0; border-top: 1px solid #e3e8f0; background: none; font-size: 15px; color: #18202e; }
   #findList button small { display: block; color: #8a93a3; font-size: 12px; margin-top: 2px; }
+  /* 検索で見つかった場所（営業のピンとは別。赤い丸に名前） */
+  .found { display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%); }
+  .found b { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: 8px;
+             background: #fff; border: 1px solid #e74c3c; color: #c0392b; font-size: 11px; }
+  .found i { width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #e74c3c; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.4); }
+  #findList.hide { display: none; }
+  .cv { width: 14px; height: 14px; border-radius: 3px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.5); }
+  .find .note button { margin-left: 6px; padding: 2px 8px; border-radius: 8px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; font-size: 12px; }
   .spot { width: 22px; height: 22px; border-radius: 50%; border: 4px solid #e74c3c; background: rgba(231,76,60,.25); box-shadow: 0 0 0 2px #fff; }
   .coord { font-size: 13px; color: #4b5567; margin-top: 4px; }
   .links { display: flex; gap: 8px; margin-top: 12px; }
@@ -602,8 +610,34 @@
   // ===== 場所の検索 =====
   // 座標・Googleマップのリンクはその場で読み取る。地名・住所は国土地理院（API 経由）、店名や施設は OpenStreetMap（スマホから直接）
   let spot = null;
+  const foundLayer = L.layerGroup().addTo(map);
+  const NOTE = 'Googleマップのリンクや「33.59, 130.40」のような座標も使えます';
   $('findBtn').onclick = () => { $('find').classList.add('open'); $('findIn').focus(); };
-  $('findClose').onclick = () => { $('find').classList.remove('open'); if (spot) { spot.remove(); spot = null; } };
+  $('findClose').onclick = () => {
+    $('find').classList.remove('open');
+    if (spot) { spot.remove(); spot = null; }
+    foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
+    $('findList').innerHTML = ''; $('findNote').textContent = NOTE;
+  };
+  const kmText = km => km < 1 ? Math.round(km * 1000) + 'm' : km.toFixed(1) + 'km';
+  const foundPopup = x => `<b>${esc(x.name)}</b><br>${esc(x.sub || '')}<br><a href="${gmapUrl(x)}" target="_blank">Googleマップで開く</a>`;
+  // 見つかった場所を全部地図に出して、一覧はたたむ（「一覧を見る」で開く）
+  function showFound(list) {
+    foundLayer.clearLayers();
+    list.forEach(x => {
+      x.marker = L.marker([x.lat, x.lng], { zIndexOffset: 1500, icon: L.divIcon({ className: '', iconSize: [0, 0],
+        html: `<div class="found"><b>${esc(x.name)}</b><i></i></div>` }) }).bindPopup(foundPopup(x)).addTo(foundLayer);
+    });
+    if (!list.length) return;
+    follow = false;
+    map.fitBounds(L.latLngBounds(list.map(x => [x.lat, x.lng])), { padding: [40, 40], maxZoom: 16 });
+    $('findList').classList.add('hide');
+    $('findNote').innerHTML = `${list.length}件を地図に表示中<button id="listBtn">一覧を見る</button>`;
+    $('listBtn').onclick = () => {
+      const hide = $('findList').classList.toggle('hide');
+      $('listBtn').textContent = hide ? '一覧を見る' : '一覧を閉じる';
+    };
+  }
   $('findGo').onclick = find;
   $('findIn').onkeydown = e => { if (e.key === 'Enter') find(); };
 
@@ -619,7 +653,9 @@
     $('findIn').blur();
     const c = coordsIn(q);
     if (c) return goSpot(c.lat, c.lng, q);
-    $('findList').innerHTML = '';
+    $('findList').innerHTML = ''; foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
+    const cw = convWanted(q);
+    if (cw) return showConv(cw);
     $('findNote').textContent = '探しています…';
     const ctr = map.getCenter(), b = map.getBounds();
     // まず今の地図のまわり（約30km）で探し、なければ全国から（コンビニなど同じ名前の店が近い順に出るように）
@@ -635,20 +671,67 @@
       const k = x.lat.toFixed(4) + ',' + x.lng.toFixed(4);
       return seen.has(k) ? false : seen.add(k);
     }).map(x => Object.assign(x, { km: map.distance(ctr, [x.lat, x.lng]) / 1000 })).sort((x, y) => x.km - y.km).slice(0, 15);
-    $('findNote').textContent = list.length ? `${list.length}件（今の地図の中心から近い順）` : '見つかりませんでした。地名や住所を足してみてください';
-    $('findList').innerHTML = list.map(x => `<button>${esc(x.name)}<small>${esc(x.sub || '')}　${x.km < 1 ? Math.round(x.km * 1000) + 'm' : x.km.toFixed(1) + 'km'}</small></button>`).join('');
-    [...$('findList').children].forEach((el, i) => el.onclick = () => goSpot(list[i].lat, list[i].lng, list[i].name));
+    $('findNote').textContent = list.length ? '' : '見つかりませんでした。地名や住所を足してみてください';
+    $('findList').innerHTML = list.map(x => `<button>${esc(x.name)}<small>${esc(x.sub || '')}　${kmText(x.km)}</small></button>`).join('');
+    [...$('findList').children].forEach((el, i) => el.onclick = () => {
+      $('findList').classList.add('hide'); $('listBtn').textContent = '一覧を見る';
+      map.setView([list[i].lat, list[i].lng], 17);
+      list[i].marker.openPopup();
+    });
+    showFound(list);
   }
 
+  // ===== コンビニ（conv.json：全国のコンビニの位置。アプリ/conv_build.py で作る） =====
+  // 「コンビニ」や店の名前で探すと、今見ている範囲の店を全部出す。地図を動かすと出し直す
+  const CONV_COLORS = { 'セブン-イレブン': '#f26f21', 'ローソン': '#0068b7', 'ファミリーマート': '#00a73c', 'ミニストップ': '#e6b800',
+    'デイリーヤマザキ': '#e60012', 'セイコーマート': '#f39800', 'NewDays': '#7a2b8e', 'その他': '#8a93a3' };
+  const CONV_WORDS = [['セブン-イレブン', /セブン|7-?11|7-?eleven|seven/i], ['ローソン', /ローソン|lawson/i], ['ファミリーマート', /ファミ|family/i],
+    ['ミニストップ', /ミニストップ|ministop/i], ['デイリーヤマザキ', /デイリー|ヤマザキ/i], ['セイコーマート', /セイコ|seico/i], ['NewDays', /newdays|ニューデイズ/i]];
+  const CONV_MAX = 400; // これより多い範囲は「拡大してください」
+  let conv = null, convShow = null; // convShow：出す店（null＝出していない、[]＝コンビニ全部）
+  const convLayer = L.layerGroup().addTo(map);
+  function convWanted(q) {
+    const hit = CONV_WORDS.filter(([, re]) => re.test(q)).map(([b]) => b);
+    return hit.length ? hit : /コンビニ|convenience/i.test(q) ? [] : null;
+  }
+  async function showConv(want) {
+    convShow = want;
+    if (!conv) {
+      $('findNote').textContent = 'コンビニを読み込んでいます…';
+      try { conv = await fetch('conv.json').then(r => r.json()); } catch (e) { $('findNote').textContent = 'コンビニを読み込めません（電波を確認してください）'; return; }
+    }
+    drawConv();
+  }
+  function drawConv() {
+    convLayer.clearLayers();
+    if (!convShow || !conv) return;
+    const b = map.getBounds(), s = b.getSouth() * 1e5, n = b.getNorth() * 1e5, w = b.getWest() * 1e5, e = b.getEast() * 1e5;
+    const ids = convShow.length ? convShow.map(x => conv.brands.indexOf(x)) : null, label = convShow.length ? convShow.join('・') : 'コンビニ';
+    const hit = conv.stores.filter(x => x[0] >= s && x[0] <= n && x[1] >= w && x[1] <= e && (!ids || ids.includes(x[2])));
+    if (hit.length > CONV_MAX) { $('findNote').textContent = `この範囲の${label}は${hit.length}件あります。地図を拡大すると表示します`; return; }
+    hit.forEach(x => {
+      const br = conv.brands[x[2]], lat = x[0] / 1e5, lng = x[1] / 1e5;
+      L.marker([lat, lng], { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+        html: `<div class="cv" style="background:${CONV_COLORS[br] || '#8a93a3'}"></div>` }) })
+        .bindPopup(`<b>${esc(br)}</b><br><a href="${gmapUrl({ lat, lng })}" target="_blank">Googleマップで開く</a>`).addTo(convLayer);
+    });
+    const kinds = [...new Set(hit.map(x => conv.brands[x[2]]))];
+    $('findNote').innerHTML = `この範囲の${esc(label)} ${hit.length}件（地図を動かすと出し直します）<br>` +
+      kinds.map(k => `<span style="color:${CONV_COLORS[k]}">■</span>${esc(k)}`).join('　') + '<br>店の位置 © OpenStreetMap contributors';
+  }
+  map.on('moveend', () => { if (convShow) drawConv(); });
+
+  // 座標・Googleマップのリンクの場所（1か所）
   function goSpot(lat, lng, name) {
     follow = false;
     if (spot) spot.remove();
+    foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
     spot = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="spot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 2000 })
       .bindPopup(`<b>${esc(name)}</b><br><a href="${gmapUrl({ lat, lng })}" target="_blank">Googleマップで開く</a>`).addTo(map);
     map.setView([lat, lng], 17);
     $('find').classList.remove('open');
     $('findList').innerHTML = '';
-    $('findNote').textContent = 'Googleマップのリンクや「33.59, 130.40」のような座標も使えます';
+    $('findNote').textContent = NOTE;
   }
 
   // ===== 共通 =====
