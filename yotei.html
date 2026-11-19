@@ -939,6 +939,7 @@
   }
 
   google.script.run.withSuccessHandler(c => {
+    if (cfg) { const day = c.today !== cfg.today; Object.assign(cfg, c); if (day) { start = listDay = cfg.today; month = cfg.today.slice(0, 8) + '01'; load(); } return; } // ホーム画面版：覚えていた設定のあとに新しい設定が届いたとき（項目の追加など）
     cfg = c;
     start = listDay = cfg.today;
     month = cfg.today.slice(0, 8) + '01';

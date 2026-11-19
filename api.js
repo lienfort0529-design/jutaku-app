@@ -24,8 +24,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwuSrk2ny2oWX1hnTH2645A
   // 前に読んだ結果をスマホに覚えておき、開いたときにすぐ出す（Apps Script は1回の読み込みに数秒かかるため）
   // ONCE：設定・名前の一覧。今日覚えたものがあればそれをすぐ使い、裏で読み直して次に開いたときに使う
   // TWICE：今日の数・予定。覚えたものをすぐ出し、新しいのが届いたら（変わっていれば）もう一度出す
-  const ONCE = ['getConfig', 'tConfig', 'yConfig', 'getApConfig'];
-  const TWICE = ['getToday', 'tGetToday', 'yForCloser', 'yData'];
+  const ONCE = ['getConfig', 'tConfig', 'getApConfig'];
+  const TWICE = ['getToday', 'tGetToday', 'yForCloser', 'yData', 'yConfig']; // yConfig：項目を足したらすぐ出るように（2026-11-19）
   const today = () => new Date().toLocaleDateString('sv-SE');
   const keyOf = (fn, a) => 'jc:' + fn + ':' + JSON.stringify(a) + (ONCE.includes(fn) ? ':' + today() : '');
   const load = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
