@@ -118,6 +118,10 @@
   .card.rk-ok { border-left: 6px solid #e6a700 !important; } .card.rk-ng { border-left: 6px solid #b8bcc2 !important; }
   .rkb { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 9px; font-size: 12px; font-weight: 700; vertical-align: 2px; }
   .rkb.ok { background: #e6a700; color: #fff; } .rkb.ng { background: #e1e4e8; color: #5b6577; }
+  td.s .cl { display: block; font-size: 13px; line-height: 1.35; }
+  td.s .ov { display: block; font-size: 11px; font-weight: 700; color: #fff; background: #c0392b; border-radius: 6px; margin: 2px 4px 0; }
+  .arb { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 9px; font-size: 12px; font-weight: 700; vertical-align: 2px; background: #2a56a8; color: #fff; }
+  .arb.tokyo { background: #16a085; } .arb.ov { background: #c0392b; }
   td.s .rkn { display: block; font-size: 11px; font-weight: 700; color: #ffe08a; }
   .mon .e .star { color: #e6a700; font-style: normal; }
   .mon .e.rk { background: rgba(230,167,0,.18); box-shadow: inset 0 0 0 1.5px #e6a700; border-radius: 4px; padding: 0 2px; margin: 1px 0; font-weight: 700; }
@@ -319,7 +323,7 @@
     <div class="nav"><button id="prevW">◀</button><div class="mid" id="weekLabel"></div><button id="nextW">▶</button></div>
     <table><thead id="gridHead"></thead><tbody id="gridBody"></tbody></table>
     <div class="legend" id="legShodan"><span><i style="background:#27ae60"></i>空きあり</span><span><i style="background:#f1c40f"></i>残り1</span>
-      <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>入れすぎ</span></div>
+      <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>溢れあり</span><span>大＝大阪・催事　東＝東京</span></div>
     <div class="legend"><span><i style="background:#e67e22"></i>前確前</span><span><i style="background:#27ae60"></i>前確完了</span></div>
     <div class="legend"><span><i style="background:#e6a700"></i>★アポ有効＝年齢79歳以下・両面接触○・電気代5000円以上・蓄電池6年以上かなし（それ以外は無効）</span></div>
     <div class="legend hide" id="legShoho"><span>1日9件まで・30分刻み</span><span>× は商談が満枠の前後3時間</span></div>
@@ -347,6 +351,7 @@
       <div><label>日付</label><input type="date" id="fDate"></div>
       <div><label id="fTimeL">時間（枠）</label><select id="fTime"></select></div>
     </div>
+    <div id="fAreaBox"><label>枠 <span class="req nr">*</span></label><select id="fArea"><option value="">選択</option><option>大阪</option><option>催事</option><option>東京</option></select></div>
     <div id="fStartBox"><label>開始時間（枠からずらすとき）</label><select id="fStart"></select></div>
     <label>お客様名 <span class="req">*</span></label><input id="fCustomer" placeholder="例：山田太郎様">
     <label>住所 <span class="req nr">*</span></label><input id="fAddress" placeholder="例：福岡市中央区天神1-1-1">
@@ -394,6 +399,10 @@
     <h2 id="dayTitle"></h2>
     <label>活動できるクローザー（休みの人は外す）</label>
     <div class="checks" id="dayClosers"></div>
+    <label>この日の枠の数（1つの時間あたり。休みの日は減らす）</label>
+    <div class="grid2"><div><label>大阪・催事</label><input id="capOsaka" type="number" inputmode="numeric" min="0" max="20"></div><div><label>東京</label><input id="capTokyo" type="number" inputmode="numeric" min="0" max="20"></div></div>
+    <button class="listbtn" id="saveCaps">枠の数を保存</button>
+    <div class="note">いつもは 大阪・催事 5 ／ 東京 2。枠を超えても予定は入れられます（溢れ枠）</div>
     <label>この日の時間帯</label>
     <input id="dayTimes" placeholder="10:00,14:00,18:00">
     <div class="note">カンマで区切って入れます。いつもは 10:00,14:00,18:00</div>
@@ -423,7 +432,18 @@
   }
   function range() { return view === 'grid' ? [start, addDays(start, 6)] : view === 'month' ? monthRange() : [listDay, listDay]; }
   function dayOf(s) { return data.days[s] || { times: ['10:00', '14:00', '18:00'], off: [] }; }
-  function cap(s) { return cfg.closers.filter(n => !dayOf(s).off.includes(n)).length; }
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  // 枠：大阪と催事は合わせて osaka、東京は tokyo。枠を超えた予定は「溢れ」（入った順に後ろのもの）
+  function capsOf(s) { return dayOf(s).caps || cfg.capDefault || { osaka: 5, tokyo: 2 }; }
+  function cap(s) { const c = capsOf(s); return c.osaka + c.tokyo; }
+  const grp = a => a.area === '東京' ? 'tokyo' : 'osaka';
+  function slotStat(s, t) {
+    const list = inSlot(s, t), c = capsOf(s), out = { over: new Set() };
+    ['osaka', 'tokyo'].forEach(g => { const l = list.filter(a => grp(a) === g); out[g] = l.length; l.slice(c[g]).forEach(a => out.over.add(a.id)); });
+    out.c = c; out.n = list.length;
+    return out;
+  }
+  const isOver = a => a.kind !== 'shoho' && slotStat(a.date, a.time).over.has(a.id);
   function inSlot(s, t) { return data.appts.filter(a => a.date === s && a.time === t); }
   const mins = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   // 初訪の時間 t の前後3時間（ちょうども含む）に満枠の商談があれば、その時間（Code.gs の yShohoBlock_ と同じ）
@@ -500,16 +520,18 @@
       const tr = document.createElement('tr'), c = cap(s);
       const td = document.createElement('td');
       td.className = 'd ' + wdClass(s) + (s === cfg.today ? ' today' : '');
-      td.innerHTML = label(s) + '<small>CL ' + c + '人</small>';
+      const cs = capsOf(s);
+      td.innerHTML = label(s) + '<small>枠 ' + cs.osaka + '・' + cs.tokyo + '</small>';
       td.onclick = () => openDay(s);
       tr.appendChild(td);
       times.forEach(t => {
         const cell = document.createElement('td');
         if (!dayOf(s).times.includes(t)) { cell.className = 'none'; tr.appendChild(cell); return; }
-        const n = inSlot(s, t).length, left = c - n;
-        cell.className = 's ' + (left < 0 ? 'over' : left === 0 ? 'full' : left === 1 ? 'last' : 'free');
+        const st = slotStat(s, t), left = Math.max(0, st.c.osaka - st.osaka) + Math.max(0, st.c.tokyo - st.tokyo);
+        cell.className = 's ' + (st.over.size ? 'over' : left === 0 ? 'full' : left === 1 ? 'last' : 'free');
         const ok = inSlot(s, t).filter(a => rankOf(a) === 'ok').length;
-        cell.innerHTML = n + '/' + c + '<small>' + (left > 0 ? '空き' + left : left === 0 ? '満枠' : '超過') + '</small>' + (ok ? '<span class="rkn">★有効' + ok + '</span>' : '');
+        cell.innerHTML = '<span class="cl">大 ' + Math.min(st.osaka, st.c.osaka) + '/' + st.c.osaka + '</span><span class="cl">東 ' + Math.min(st.tokyo, st.c.tokyo) + '/' + st.c.tokyo + '</span>' +
+          (st.over.size ? '<span class="ov">溢れ' + st.over.size + '</span>' : '') + (ok ? '<span class="rkn">★有効' + ok + '</span>' : '');
         cell.onclick = () => openSlot(s, t);
         tr.appendChild(cell);
       });
@@ -589,6 +611,7 @@
     const rk = rankOf(a);
     d.classList.add('rk-' + rk);
     d.querySelector('b').insertAdjacentHTML('beforeend', '<span class="rkb ' + rk + '">' + (rk === 'ok' ? 'アポ有効' : '無効') + '</span>');
+    if (a.kind !== 'shoho') d.querySelector('b').insertAdjacentHTML('beforeend', (a.area ? '<span class="arb ' + grp(a) + '">' + esc(a.area) + '</span>' : '<span class="arb" style="background:#8a93a3">枠未設定</span>') + (isOver(a) ? '<span class="arb ov">溢れ</span>' : ''));
     const st = d.querySelector('.st');
     st.textContent = a.kind === 'shoho' ? '催事 初訪' : a.result || '結果まだ';
     if (a.kind === 'shoho') { st.classList.add('shoho'); d.querySelector('.rb').remove(); }
@@ -631,7 +654,8 @@
     const head = document.createElement('div');
     head.className = 'note';
     head.style.margin = '0 0 8px';
-    head.textContent = '予定 ' + list.length + '件 ／ 枠 ' + dayOf(listDay).times.length * c + '（CL ' + c + '人 × ' + dayOf(listDay).times.join('・') + '）';
+    const cs = capsOf(listDay);
+    head.textContent = '予定 ' + list.length + '件 ／ 1つの時間に 大阪・催事 ' + cs.osaka + '・東京 ' + cs.tokyo + '枠（' + dayOf(listDay).times.join('・') + '）。超えた分は溢れ枠';
     box.appendChild(head);
     if (!list.length) box.insertAdjacentHTML('beforeend', '<p style="text-align:center;color:#888">予定はありません</p>');
     list.forEach(a => box.appendChild(card(a)));
@@ -650,23 +674,22 @@
       box.appendChild(b);
     }
   }
-  function freeTime(s) { return dayOf(s).times.find(t => inSlot(s, t).length < cap(s)) || dayOf(s).times[0]; }
+  function freeTime(s) { return dayOf(s).times.find(t => inSlot(s, t).length < cap(s)) || dayOf(s).times[0]; } // 溢れでも入れられる
 
   // ===== 枠の中身 =====
   function openSlot(s, t, k) { current = { date: s, time: t, kind: k || '' }; renderSlot(); $('slot').classList.add('open'); }
   function renderSlot() {
     if (current.kind === 'shoho') return renderShohoSlot();
-    const { date, time } = current, list = inSlot(date, time), c = cap(date);
-    $('slotTitle').textContent = label(date) + ' ' + time + '（' + list.length + '/' + c + '）';
+    const { date, time } = current, list = inSlot(date, time), st = slotStat(date, time);
+    $('slotTitle').textContent = label(date) + ' ' + time + '（大阪・催事 ' + st.osaka + '/' + st.c.osaka + '・東京 ' + st.tokyo + '/' + st.c.tokyo + '）';
     const box = $('slotBox');
     box.innerHTML = '';
     list.forEach(a => box.appendChild(card(a)));
-    if (list.length < c) {
-      const add = document.createElement('button');
-      add.className = 'add'; add.textContent = '＋ 予定を入れる（空き ' + (c - list.length) + '）';
-      add.onclick = () => openForm(null, date, time);
-      box.appendChild(add);
-    } else box.insertAdjacentHTML('beforeend', '<p style="text-align:center;color:#888">この枠は埋まっています</p>');
+    const lo = st.c.osaka - st.osaka, lt = st.c.tokyo - st.tokyo;
+    const add = document.createElement('button');
+    add.className = 'add'; add.textContent = '＋ 予定を入れる（空き 大阪・催事 ' + Math.max(0, lo) + '・東京 ' + Math.max(0, lt) + (lo <= 0 || lt <= 0 ? '／いっぱいの枠は溢れで入ります' : '') + '）';
+    add.onclick = () => openForm(null, date, time);
+    box.appendChild(add);
   }
 
   function renderShohoSlot() {
@@ -713,7 +736,8 @@
       o.disabled = !!b && !(editing && editing.date === s && editing.time === t);
       $('fTime').add(o);
     });
-    else dayOf(s).times.forEach(t => $('fTime').add(new Option(t + '（' + inSlot(s, t).filter(a => !editing || a.id !== editing.id).length + '/' + cap(s) + '）', t)));
+    else dayOf(s).times.forEach(t => { const l = inSlot(s, t).filter(a => !editing || a.id !== editing.id), c = capsOf(s);
+      $('fTime').add(new Option(t + '（大 ' + l.filter(a => grp(a) === 'osaka').length + '/' + c.osaka + '・東 ' + l.filter(a => grp(a) === 'tokyo').length + '/' + c.tokyo + '）', t)); });
     if (keep) $('fTime').value = keep;
     const off = dayOf(s).off, cl = $('fCl').value;
     $('fCl').innerHTML = '';
@@ -794,6 +818,8 @@
     $('fTime').value = a ? a.time : time;
     $('fTimeL').textContent = formKind === 'shoho' ? '時間' : '時間（枠）';
     $('fStartBox').classList.toggle('hide', formKind === 'shoho');
+    $('fAreaBox').classList.toggle('hide', formKind === 'shoho');
+    $('fArea').value = a && a.area ? a.area : '';
     fillStart(a && a.start);
     $('fCustomer').value = a ? a.customer : '';
     $('fAddress').value = a ? a.address : '';
@@ -811,10 +837,10 @@
   function saveForm() {
     const a = { id: editing ? editing.id : '', date: $('fDate').value, time: $('fTime').value, customer: $('fCustomer').value.trim(),
       address: $('fAddress').value.trim(), map: $('fMap').value.trim(), product: checked('fProduct'), ap: getAp('fAp', 'fApOther'),
-      cl: $('fCl').value, memo: $('fMemo').value.trim(), detail: getDetail(), kind: formKind, start: formKind === 'shoho' ? '' : $('fStart').value };
+      cl: $('fCl').value, memo: $('fMemo').value.trim(), detail: getDetail(), kind: formKind, start: formKind === 'shoho' ? '' : $('fStart').value, area: formKind === 'shoho' ? '' : $('fArea').value };
     if (!a.date || !a.time || !a.customer) { alert('日付・時間・お客様名を入れてください'); return; }
     if (!editing) { // 必須は新しく入れるときだけ
-      const missing = (a.address ? [] : ['住所']).concat(a.map ? [] : ['マップURL'],
+      const missing = (a.area || formKind === 'shoho' ? [] : ['枠']).concat(a.address ? [] : ['住所'], a.map ? [] : ['マップURL'],
         cfg.fields.filter(f => f.req && shown(f, a.detail) && !a.detail[f.key]).map(f => f.label.replace('↪︎ ', '')));
       if (missing.length) { alert('入れてください：\n' + missing.join('、')); return; }
     }
@@ -939,7 +965,7 @@
   }
 
   // ===== 日の設定 =====
-  function openDay(s) { current = { date: s }; renderDay(); $('dayTimes').value = dayOf(s).times.join(','); $('day').classList.add('open'); }
+  function openDay(s) { current = { date: s }; renderDay(); $('dayTimes').value = dayOf(s).times.join(','); $('capOsaka').value = capsOf(s).osaka; $('capTokyo').value = capsOf(s).tokyo; $('day').classList.add('open'); }
   function renderDay() {
     const s = current.date, off = dayOf(s).off;
     $('dayTitle').textContent = label(s) + ' の設定';
@@ -950,6 +976,9 @@
       c.onchange = () => call('ySetOff', [s, n, !c.checked], '保存中…');
       l.append(c, n); $('dayClosers').appendChild(l);
     });
+  }
+  function saveCaps() {
+    call('ySetCaps', [current.date, $('capOsaka').value, $('capTokyo').value], '保存中…', () => { $('msg').textContent = '枠の数を保存しました'; });
   }
   function saveTimes() {
     call('ySetTimes', [current.date, $('dayTimes').value], '保存中…', () => { $('dayTimes').value = dayOf(current.date).times.join(','); $('msg').textContent = '時間帯を保存しました'; });
@@ -1007,6 +1036,7 @@
   $('sendSale').onclick = sendSale;
   $('closeDay').onclick = () => $('day').classList.remove('open');
   $('saveTimes').onclick = saveTimes;
+  $('saveCaps').onclick = saveCaps;
   // ほかの人が入れた予定も見えるように、1分ごとに読み直す（入力中は読み直さない）
   setInterval(() => {
     if (!cfg || document.hidden || document.body.classList.contains('busy') || $('form').classList.contains('open') || $('sale').classList.contains('open')) return;
