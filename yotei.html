@@ -114,6 +114,12 @@
   .phAdd { aspect-ratio: 1; border-radius: 10px; border: 2px dashed #2a56a8; background: none; color: #2a56a8; font-size: 13px; font-weight: 700; }
   #phView { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.9); align-items: center; justify-content: center; }
   #phView.open { display: flex; } #phView img { max-width: 100%; max-height: 100%; }
+  /* アポ有効（年齢79歳以下・両面接触○・電気代5000円以上・蓄電池6年以上かなし）の色分け */
+  .card.rk-ok { border-left: 6px solid #e6a700 !important; } .card.rk-ng { border-left: 6px solid #b8bcc2 !important; }
+  .rkb { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 9px; font-size: 12px; font-weight: 700; vertical-align: 2px; }
+  .rkb.ok { background: #e6a700; color: #fff; } .rkb.ng { background: #e1e4e8; color: #5b6577; }
+  td.s .rkn { display: block; font-size: 11px; font-weight: 700; color: #ffe08a; }
+  .mon .e .star { color: #e6a700; font-style: normal; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
 <script>
@@ -314,6 +320,7 @@
     <div class="legend" id="legShodan"><span><i style="background:#27ae60"></i>空きあり</span><span><i style="background:#f1c40f"></i>残り1</span>
       <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>入れすぎ</span></div>
     <div class="legend"><span><i style="background:#e67e22"></i>前確前</span><span><i style="background:#27ae60"></i>前確完了</span></div>
+    <div class="legend"><span><i style="background:#e6a700"></i>★アポ有効＝年齢79歳以下・両面接触○・電気代5000円以上・蓄電池6年以上かなし（それ以外は無効）</span></div>
     <div class="legend hide" id="legShoho"><span>1日9件まで・30分刻み</span><span>× は商談が満枠の前後3時間</span></div>
     <div class="note" style="text-align:center">マスを押すと予定の確認・追加、日付を押すと休み・時間帯の変更</div>
   </div>
@@ -500,7 +507,8 @@
         if (!dayOf(s).times.includes(t)) { cell.className = 'none'; tr.appendChild(cell); return; }
         const n = inSlot(s, t).length, left = c - n;
         cell.className = 's ' + (left < 0 ? 'over' : left === 0 ? 'full' : left === 1 ? 'last' : 'free');
-        cell.innerHTML = n + '/' + c + '<small>' + (left > 0 ? '空き' + left : left === 0 ? '満枠' : '超過') + '</small>';
+        const ok = inSlot(s, t).filter(a => rankOf(a) === 'ok').length;
+        cell.innerHTML = n + '/' + c + '<small>' + (left > 0 ? '空き' + left : left === 0 ? '満枠' : '超過') + '</small>' + (ok ? '<span class="rkn">★有効' + ok + '</span>' : '');
         cell.onclick = () => openSlot(s, t);
         tr.appendChild(cell);
       });
@@ -544,6 +552,7 @@
         e.innerHTML = '<i>●</i><b></b>';
         e.querySelector('i').style.color = PC[pcState(a)];
         e.querySelector('b').textContent = startOf(a).replace(/^0?(\d+):00$/, '$1') + (a.kind === 'shoho' ? '初' : '');
+        if (rankOf(a) === 'ok') e.insertAdjacentHTML('beforeend', '<i class="star">★</i>');
         e.append(String(a.customer).replace(/\s*様$/, '')); // 狭いので「様」は省く
         if (a.result) e.style.color = COLORS[a.result]; // 結果が入ったら結果の色
         td.appendChild(e);
@@ -555,12 +564,30 @@
   }
 
   // ===== 予定一覧・カード =====
+  // アポ有効の判定。4つ全部そろったら有効、空欄・不明・どれか外れたら無効
+  function toNum(v) {
+    let s = String(v == null ? '' : v).replace(/[０-９．]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[,，円¥\s]/g, '');
+    const m = s.match(/(\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    let n = Number(m[1]);
+    if (/万/.test(s)) n *= 10000; else if (/千/.test(s)) n *= 1000;
+    return n;
+  }
+  function rankOf(a) {
+    const d = a.detail || {}, age = toNum(d.age), elec = toNum(d.elec), bt = String(d.batteryYears || '').trim(), btn = toNum(bt);
+    const batt = /なし|無し|無|ない/.test(bt) || (btn != null && btn >= 6);
+    return age != null && age <= 79 && d.both === '○' && elec != null && elec >= 5000 && batt ? 'ok' : 'ng';
+  }
+
   function card(a, withDate) {
     const d = document.createElement('div');
     d.className = 'card';
     d.innerHTML = '<div class="top"><b></b><span class="st"></span></div><small class="ad"></small><small class="who"></small><small class="memo"></small>' +
       '<div class="btns"><a class="map" target="_blank">地図</a><button class="rb">結果</button><button class="eb">編集</button></div>';
     d.querySelector('b').textContent = (withDate ? label(a.date) + ' ' : '') + timeText(a) + '　' + a.customer;
+    const rk = rankOf(a);
+    d.classList.add('rk-' + rk);
+    d.querySelector('b').insertAdjacentHTML('beforeend', '<span class="rkb ' + rk + '">' + (rk === 'ok' ? 'アポ有効' : '無効') + '</span>');
     const st = d.querySelector('.st');
     st.textContent = a.kind === 'shoho' ? '催事 初訪' : a.result || '結果まだ';
     if (a.kind === 'shoho') { st.classList.add('shoho'); d.querySelector('.rb').remove(); }
