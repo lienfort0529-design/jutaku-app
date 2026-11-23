@@ -90,6 +90,7 @@
   body.busy #overlay { display: flex; }
   .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2a56a8; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .tabs .tablink { display: flex; align-items: center; justify-content: center; padding: 0 12px; font-size: 14px; font-weight: 600; text-decoration: none; color: #2a56a8; white-space: nowrap; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
 <script>
@@ -253,9 +254,9 @@
     var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
     var base = a0 ? a0.href.split('?')[0] : '';
     var MAP = 'map.html';
-    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['closer', 'クローザー入力', 'CLOSER'], ['tataki', '叩きカウンター', 'COUNTER'], ['ap', '催事のお客様登録', 'EVENT'],
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['tataki', '叩きカウンター', 'COUNTER'],
                  ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
-                 ['kpi', 'KPI・ランキング', 'KPI'], ['input', '入力', 'INPUT'], ['member', 'メンバー', 'MEMBER'], ['map', '営業マップ', 'MAP']];
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['settings', '設定', 'SETTINGS'], ['map', '営業マップ', 'MAP']];
     var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
     var title = (document.querySelector('.lf-t b') || {}).textContent || '';
     var file = location.pathname.split('/').pop();
@@ -275,19 +276,13 @@
 <body>
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>入力</b></div></header>
   <div class="wrap">
-    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="sales">成約一覧</button><button data-v="saiji">催事</button>
-      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button></div>
+    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="saiji">催事</button>
+      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><a class="tablink" href="sales.html">売上 ›</a></div>
     <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
     <div id="msg"></div>
     <div id="view"></div>
     <div class="admin" id="adminBox"></div>
   </div>
-  <div class="sheet" id="saleSheet"><div class="in">
-    <h3 id="ssTitle"></h3><div class="sub" id="ssSub"></div>
-    <div class="note">状態</div><div class="opts" id="ssOpts"></div>
-    <label class="chk"><input type="checkbox" id="ssPassed">クーリン通過（クーリングオフ期間を過ぎた）</label>
-    <div class="acts"><button class="cancel" id="ssCancel">やめる</button><button class="ok" id="ssSave">保存</button></div>
-  </div></div>
   <div id="overlay"><div class="spinner"></div>読み込み中…</div>
 
 <script>
@@ -302,7 +297,7 @@
 
   // 入力・メンバーは同じ画面を別の項目として開く（?page=input / member、ホーム画面版は input.html / member.html）
   const MODE = 'input';
-  let D = null, view = 'rank', prev = 0, role = 'ct', S = null, SQ = '', editing = null, I = null, iSheet = 'クローザー', MB = null, mTable = '叩き';
+  let D = null, view = 'rank', prev = 0, role = 'ct', I = null, iSheet = 'クローザー', MB = null, mTable = '叩き';
 
   // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
   function load() {
@@ -325,9 +320,9 @@
     if (!D) return; // KPI の数字が届く前に押されたとき
     document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
     document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
-    $('mon').classList.toggle('hide', view === 'saiji'); // 催事は自分の期間（今月・先月・全期間）
+    $('mon').classList.toggle('hide', view === 'saiji' || !!MODE); // 催事は自分の期間（今月・先月・全期間）
     $('view').innerHTML = '';
-    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, saiji: renderSaiji, sales: renderSales, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
+    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, saiji: renderSaiji, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
     renderAdmin();
   }
 
@@ -632,75 +627,6 @@
     };
   }
 
-  // ===== 成約一覧（全員が見る・管理者が状態を直す） =====
-  const OUT = /キャンセル|クーリング|辞退|否決/;
-  function loadSales() {
-    S = null; render();
-    google.script.run.withSuccessHandler(r => { S = r; if (view === 'sales') render(); })
-      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).saleList(!!prev);
-  }
-  function renderSales() {
-    if (!S) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
-    const q = document.createElement('div');
-    q.className = 'row';
-    q.innerHTML = '<input id="sq" placeholder="お客様名・担当で探す" style="flex:1">';
-    $('view').appendChild(q);
-    $('sq').value = SQ;
-    $('sq').oninput = () => { SQ = $('sq').value; drawSales(); };
-    const box = document.createElement('div');
-    box.id = 'saleBox';
-    $('view').appendChild(box);
-    drawSales();
-  }
-  function drawSales() {
-    const w = SQ.trim(), list = S.rows.filter(x => !w || [x.customer, x.closer, x.ap, x.team].some(v => String(v).includes(w)))
-      .sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row);
-    const ok = list.filter(x => !OUT.test(x.status));
-    const c = card(S.month + '（' + list.length + '件）', '契約 ' + ok.length + '件・' + yen(ok.reduce((a, x) => a + x.price, 0)));
-    if (!list.length) c.insertAdjacentHTML('beforeend', '<div class="note">ありません</div>');
-    list.forEach(x => {
-      const d = document.createElement('div');
-      d.className = 'sl' + (D && D.admin ? ' edit' : '');
-      d.innerHTML = '<div><b></b> <span class="st"></span></div><div class="v"></div><small></small>';
-      d.querySelector('b').textContent = x.date.slice(5).replace('-', '/') + ' ' + x.customer;
-      const st = d.querySelector('.st');
-      st.textContent = (x.status || '-') + (x.passed ? '・通過' : '');
-      if (OUT.test(x.status)) st.classList.add('x');
-      d.querySelector('.v').textContent = yen(x.price);
-      d.querySelector('small').textContent = 'CL ' + x.closer + '・AP ' + x.ap + '・' + x.team + '・' + x.place + '・' + x.payment + '・' + x.product + (x.kouji ? '・工事 ' + x.kouji : '') + (x.note ? '・' + x.note : '');
-      if (D && D.admin) d.onclick = () => openSale(x);
-      c.appendChild(d);
-    });
-    if (D && D.admin) c.insertAdjacentHTML('beforeend', '<div class="note">押すと状態・クーリン通過を直せます（中身の修正はシートで）</div>');
-    $('saleBox').innerHTML = '';
-    $('saleBox').appendChild(c);
-  }
-  function openSale(x) {
-    editing = { x: x, status: x.status };
-    $('ssTitle').textContent = x.customer;
-    $('ssSub').textContent = x.date.replace(/-/g, '/') + '・' + yen(x.price) + '・CL ' + x.closer;
-    $('ssOpts').innerHTML = '';
-    S.statuses.forEach(o => {
-      const b = document.createElement('button');
-      b.textContent = o; b.className = o === x.status ? 'on' : '';
-      b.onclick = () => { editing.status = o; [...$('ssOpts').children].forEach(y => y.classList.toggle('on', y === b)); };
-      $('ssOpts').appendChild(b);
-    });
-    $('ssPassed').checked = x.passed;
-    $('saleSheet').classList.add('open');
-  }
-  function saveSale() {
-    const x = editing.x;
-    document.body.classList.add('busy');
-    google.script.run.withSuccessHandler(r => {
-      document.body.classList.remove('busy');
-      S = r; $('saleSheet').classList.remove('open');
-      $('msg').textContent = '保存しました：' + x.customer + ' ' + editing.status;
-      render();
-    }).withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })
-      .saleStatus(store('jAdmin') || '', !!prev, x.row, x.customer, editing.status, $('ssPassed').checked);
-  }
-
   // ===== 入力（管理者）：今月の表の、数式でない欄（目標・キャンセル数など） =====
   function loadInput() {
     I = null; render();
@@ -931,23 +857,29 @@
     $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); if (MODE) modeLoad(); else load(); };
   }
 
-  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'saiji' && !SJ) loadSaiji(); else if (view === 'sales' && !S) loadSales(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
-  document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); S = null; load(); if (view === 'sales') loadSales(); });
-  $('ssCancel').onclick = () => $('saleSheet').classList.remove('open');
-  $('ssSave').onclick = saveSale;
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'saiji' && !SJ) loadSaiji(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
+  document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); load(); });
   // 入力・メンバーの画面：KPI の数字は読まず、管理者の合言葉があればその表だけ読む
   function modeLoad() {
     D = { admin: true }; // 入力・メンバーは管理者でなくても使える（2026-11-18〜）
-    I = MB = null; render();
-    google.script.run.withSuccessHandler(r => { if (MODE === 'input') I = r; else MB = r; $('msg').textContent = ''; render(); })
+    const v = view;
+    if (v === 'input') I = null; else MB = null;
+    render();
+    google.script.run.withSuccessHandler(r => { if (v === 'input') I = r; else MB = r; $('msg').textContent = ''; if (view === v) render(); })
       .withFailureHandler(e => {
         $('msg').textContent = 'エラー: ' + e.message;
-      })[MODE === 'input' ? 'inputData' : 'memberData'](store('jAdmin') || '');
+      })[v === 'input' ? 'inputData' : 'memberData'](store('jAdmin') || '');
   }
+  // 設定（2026-11-23）：入力とメンバーを1つの画面のタブにする
   if (MODE) {
-    view = MODE;
-    document.querySelector('.tabs').classList.add('hide'); $('mon').classList.add('hide');
+    const t = document.querySelector('.tabs');
+    $('mon').classList.add('hide');
     renderAdmin = () => { $('adminBox').innerHTML = ''; };
+    if (MODE === 'settings') {
+      t.innerHTML = '<button data-v="input">入力</button><button data-v="member">メンバー</button>';
+      view = store('setView') === 'member' ? 'member' : 'input';
+      t.querySelectorAll('button').forEach(b => b.onclick = () => { view = b.dataset.v; store('setView', view); if (view === 'input' ? I : MB) render(); else modeLoad(); });
+    } else { view = MODE; t.classList.add('hide'); }
     modeLoad();
   } else load();
 </script>

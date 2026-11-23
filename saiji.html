@@ -19,6 +19,7 @@
   select, input, textarea { font-size: 16px; padding: 9px 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; width: 100%; }
   .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .tabs button { flex: 1; padding: 10px 6px; font-size: 15px; font-weight: 600; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+  .tabs .reg { flex: 1.3; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #2a56a8; color: #fff; font-weight: 700; font-size: 15px; text-decoration: none; }
   .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
   .card { background: #fff; border-radius: 14px; padding: 12px 14px; cursor: pointer; }
@@ -207,9 +208,9 @@
     var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
     var base = a0 ? a0.href.split('?')[0] : '';
     var MAP = 'map.html';
-    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['closer', 'クローザー入力', 'CLOSER'], ['tataki', '叩きカウンター', 'COUNTER'], ['ap', '催事のお客様登録', 'EVENT'],
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['tataki', '叩きカウンター', 'COUNTER'],
                  ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
-                 ['kpi', 'KPI・ランキング', 'KPI'], ['input', '入力', 'INPUT'], ['member', 'メンバー', 'MEMBER'], ['map', '営業マップ', 'MAP']];
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['settings', '設定', 'SETTINGS'], ['map', '営業マップ', 'MAP']];
     var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
     var title = (document.querySelector('.lf-t b') || {}).textContent || '';
     var file = location.pathname.split('/').pop();
@@ -228,7 +229,7 @@
 </head>
 <body>
   <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>催事</b></div></header>
-  <div class="tabs"><button data-v="nippo" class="on">日報</button><button data-v="cust">お客様</button></div>
+  <div class="tabs"><a class="reg" href="ap.html">＋ お客様登録</a><button data-v="nippo" class="on">日報</button><button data-v="cust">お客様</button></div>
   <div id="msg"></div>
   <div id="nippoBox">
     <div class="row"><select id="nMonth" aria-label="月"></select><select id="nVenue" aria-label="会場"></select></div>

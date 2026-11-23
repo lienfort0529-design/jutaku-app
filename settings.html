@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>設定</title>
+<script src="api.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 12px 14px 40px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  select, input { font-size: 16px; padding: 9px 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; }
+  button { font-family: inherit; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 70px; padding: 10px 6px; font-size: 15px; font-weight: 600; border-radius: 10px; border: 1px solid var(--blue, #2a56a8); background: #fff; color: var(--blue, #2a56a8); }
+  .tabs button.on { background: var(--blue, #2a56a8); color: #fff; }
+  .seg { display: flex; gap: 6px; margin-bottom: 12px; }
+  .seg button { flex: 1; padding: 8px; font-size: 14px; font-weight: 600; border-radius: 20px; border: 1px solid #b9c2d0; background: #fff; color: #4b5567; }
+  .seg button.on { background: #18202e; border-color: #18202e; color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .card { background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; padding: 14px; }
+  .card h3 { margin: 0 0 10px; font-size: 15px; color: #18202e; }
+  .card h3 small { font-weight: 400; color: #888; margin-left: 6px; }
+  .big { font-size: 26px; font-weight: 800; color: #18202e; }
+  .sub { font-size: 13px; color: #666; margin-top: 2px; }
+  .bar { height: 10px; background: #eef2f9; border-radius: 6px; overflow: hidden; margin: 8px 0 2px; }
+  .bar i { display: block; height: 100%; background: #2a56a8; border-radius: 6px; }
+  .bar i.ok { background: #27ae60; }
+  .rk { display: grid; grid-template-columns: 34px 1fr auto; gap: 2px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line, #f0f2f6); font-size: 15px; }
+  .rk:first-of-type { border-top: 0; }
+  .rk .n { text-align: center; font-weight: 700; color: var(--sub, #888); }
+  .rk .v { font-weight: 700; }
+  .rk .bar { grid-column: 2 / 4; height: 6px; margin: 0; }
+  .rk.m1 .n, .rk.m2 .n, .rk.m3 .n { font-size: 20px; }
+  .mvp { display: flex; align-items: center; gap: 12px; }
+  .mvp .medal { flex: none; width: 52px; height: 52px; border-radius: 50%; background: #18202e; color: #e9c46a; display: flex; align-items: center; justify-content: center; font-family: Oswald, sans-serif; font-size: 14px; letter-spacing: .1em; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; font-size: 15px; }
+  .kv span { color: #555; } .kv b { text-align: right; }
+  .good { color: #1e8449; } .bad { color: #c0392b; }
+  .tbl { overflow-x: auto; background: #fff; border: 1px solid #e3e8f0; border-radius: 14px; }
+  table { border-collapse: collapse; font-size: 13px; white-space: nowrap; width: 100%; }
+  th, td { padding: 7px 9px; border-bottom: 1px solid #eef0f4; text-align: right; }
+  th { background: #f6f8fb; color: #4b5567; position: sticky; top: 0; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: #fff; font-weight: 600; z-index: 1; }
+  th:first-child { background: #f6f8fb; z-index: 2; }
+  tr.total td { background: #f6f8fb; font-weight: 700; }
+  td.good { background: #eafaf0; } td.bad { background: #fdecea; }
+  .chart svg { width: 100%; height: 150px; display: block; }
+  .gy td, .gy th { padding: 6px 4px; text-align: right; } .gy td:first-child, .gy th:first-child { text-align: left; } .gy td b { font-size: 16px; color: #2a56a8; }
+  .gyin { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; margin-top: 10px; font-size: 14px; }
+  .gyreset { padding: 8px 14px; font-size: 13px; border-radius: 10px; border: 1px solid #b9c2d0; background: #fff; color: #4b5567; }
+  .gyin input { width: 90px; text-align: right; } .gyin small { grid-column: 1 / -1; color: #888; margin-top: -4px; }
+  .note { font-size: 13px; color: #888; margin: 6px 0; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .row select { flex: 1; min-width: 160px; }
+  .admin { margin-top: 24px; text-align: center; }
+  .admin button { padding: 9px 16px; font-size: 14px; border-radius: 10px; border: 1px solid #b9c2d0; background: #fff; color: #4b5567; }
+  .admin input { width: 180px; margin-right: 6px; }
+  #msg { text-align: center; color: #666; font-size: 14px; min-height: 20px; margin: 8px 0; }
+  .hide { display: none !important; }
+  .st { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #e8f5ee; color: #1e8449; font-weight: 600; white-space: nowrap; }
+  .st.x { background: #fdecea; color: #c0392b; }
+  .sl { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--line, #f0f2f6); font-size: 15px; }
+  .sl:first-of-type { border-top: 0; }
+  .sl small { grid-column: 1 / 3; color: #777; font-size: 13px; }
+  .sl.edit { cursor: pointer; }
+  .sheet { display: none; position: fixed; inset: 0; background: rgba(24,32,46,.45); z-index: 20; align-items: flex-end; justify-content: center; }
+  .sheet.open { display: flex; }
+  .sheet .in { background: #fff; width: 100%; max-width: 520px; border-radius: 16px 16px 0 0; padding: 18px 16px 24px; }
+  .sheet h3 { margin: 0 0 4px; } .sheet .sub { margin-bottom: 12px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .opts button { padding: 12px; font-size: 16px; font-weight: 600; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
+  .opts button.on { background: #18202e; border-color: #18202e; color: #fff; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 14px; }
+  .chk input { width: 22px; height: 22px; }
+  .acts { display: flex; gap: 10px; } .acts button { flex: 1; padding: 13px; font-size: 16px; font-weight: 600; border-radius: 12px; border: 0; }
+  .acts .ok { background: #2a56a8; color: #fff; }
+  .fi { display: grid; grid-template-columns: 1fr 150px; gap: 8px 10px; align-items: center; }
+  .fi label { font-size: 15px; } .fi input { width: 100%; text-align: right; }
+  .fi .ro { text-align: right; color: #888; font-size: 14px; } .acts .cancel { background: #e3e8f0; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 30; align-items: center; justify-content: center; flex-direction: column; font-weight: 600; }
+  body.busy #overlay { display: flex; }
+  .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2a56a8; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tabs .tablink { display: flex; align-items: center; justify-content: center; padding: 0 12px; font-size: 14px; font-weight: 600; text-decoration: none; color: #2a56a8; white-space: nowrap; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<script>
+  // 明るい・暗い：端末の設定に合わせる。右上のボタンで切り替えると、その端末に覚える（lfTheme）
+  (function () { try { var t = localStorage.getItem('lfTheme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
+<style>
+  /* 住宅設備アプリ共通のデザイン（2026-11-18 作り直し：明るい・暗い、パソコンは左にメニュー）。
+     色は Lien Fort（lienfort.co.jp）の紺と青。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --btn: #2a56a8; --sub: #5b6577; --line: #e2e7ef; --bg: #f3f5f9; --pale: #eef2f9;
+          --surface: #fff; --surface2: #f6f8fb; --track: #e9edf3; --bar: #18202e; --chip: #18202e; --chipInk: #fff;
+          --veil: rgba(243,245,249,.72); --shadow: 0 1px 2px rgba(24,32,46,.06), 0 8px 24px rgba(24,32,46,.05);
+          --pend: #fff3cd; --pendInk: #7a5b00; --goodBg: #eafaf0; --badBg: #fdecea;
+          --en: Oswald, "Arial Narrow", sans-serif; --num: Inter, "Hiragino Sans", sans-serif; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+
+  /* 上の帯 */
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 12px 14px;
+            background: var(--bar); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px !important; letter-spacing: .3em; color: #8fa6cf !important; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; color: #fff; }
+  .lf-theme { flex: none; margin-left: auto; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+              border: 1px solid rgba(255,255,255,.18); border-radius: 10px; background: rgba(255,255,255,.06); color: #fff; padding: 0; cursor: pointer; }
+  .lf-theme svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .lf-bar .who ~ .lf-theme, .lf-bar .lf-theme ~ .who { margin-left: 8px; }
+
+  /* 入力欄 */
+  select, input, textarea { background: var(--surface) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.35); border-color: var(--blue) !important; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--btn); }
+  h2, h3, .card h3 { letter-spacing: .03em; color: var(--ink) !important; }
+  label, .note, .sub, small, #msg, .legend, .count, .calc, .coord, .state, .card dt, .gcard p { color: var(--sub) !important; }
+  td.s small, .shd td.c small, button.r small, .tiles a.app.main small { color: rgba(255,255,255,.85) !important; } td.s.last small { color: #5c4b00 !important; }
+
+  /* 面（カード・表・パネル） */
+  .card, .summary, .summary > div, .tbl, .gcard, .sheet .in, #close, .visit, .panel, .find, .fab, .showBtn,
+  td.d, .mon td, .shd td:not(.c), .checks label, #sale .checks label, .sheet .kinds label, .names button, #pickList button {
+    background: var(--surface) !important; border-color: var(--line) !important; color: var(--ink); }
+  .card, .tbl, .summary > div, .summary, .gcard, .visit { border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--shadow) !important; }
+  .card summary, .req { color: var(--blue) !important; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b, .big, .rk .v, .v, .gy td b { font-family: var(--num) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .summary b { font-weight: 800; font-size: 28px !important; color: var(--ink); }
+  .big { font-weight: 800 !important; color: var(--ink) !important; }
+  .bar, .left .bar { background: var(--track) !important; }
+  .bar i, .left .bar i { background: var(--btn) !important; } .bar i.ok { background: #27ae60 !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--btn) !important; }
+  td.s.block { background: var(--pale) !important; }
+  .legend span:first-child i { background: var(--btn) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+  .st { background: var(--pale) !important; color: var(--ink) !important; }
+  .st.shoho { background: #8e44ad !important; color: #fff !important; }
+  .st.x { background: var(--badBg) !important; color: #e06b5f !important; }
+  #pending { background: var(--pend) !important; color: var(--pendInk) !important; }
+  .checks label, #sale .checks label, .sheet .kinds label { color: var(--ink) !important; }
+
+  /* 表（KPI） */
+  table { color: var(--ink); }
+  th { background: var(--surface2) !important; color: var(--sub) !important; border-color: var(--line) !important; }
+  td { border-color: var(--line) !important; }
+  .tbl td:first-child { background: var(--surface) !important; }
+  .tbl th:first-child, tr.total td { background: var(--surface2) !important; }
+  td.good { background: var(--goodBg) !important; } td.bad { background: var(--badBg) !important; }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button { font-family: inherit; }
+  button.r { border-radius: 14px !important; box-shadow: 0 2px 0 rgba(0,0,0,.14); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel, .seg button, .gyreset, .admin button, .opts button, .two button, .links button,
+  .sides button, .close-btn, .choice button, .kinds button, .pc button, #goalEdit, .del, .add {
+    background: var(--surface) !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map, .links button, .two button, #goalEdit, .close-btn { color: var(--blue) !important; }
+  .del { color: #e06b5f !important; border-color: rgba(224,107,95,.5) !important; }
+  .add { border: 2px dashed var(--blue) !important; color: var(--blue) !important; }
+  .ok, .acts .ok, .gcard .go, #close .ok { background: var(--btn) !important; color: #fff !important; }
+  .tabs { gap: 6px !important; }
+  .tabs button, .seg button { border-radius: 999px !important; border: 1px solid var(--line) !important; background: var(--surface) !important; color: var(--sub) !important; font-weight: 600; }
+  .tabs button.on, .seg button.on, .opts button.on, .choice button.on, .sides button.on, .showBtn.on {
+    background: var(--chip) !important; border-color: var(--chip) !important; color: var(--chipInk) !important; }
+  .kinds button.on { background: #8e44ad !important; border-color: #8e44ad !important; color: #fff !important; }
+  #clockBtn { background: var(--pale) !important; color: var(--ink) !important; }
+  #clockBtn.on { background: var(--badBg) !important; color: #e06b5f !important; }
+  #placeBtn { background: var(--surface) !important; }
+  #findList button { color: var(--ink) !important; border-top-color: var(--line) !important; }
+  .fab, .fab * { color: var(--blue) !important; } #layerBtn, #findBtn, .showBtn { color: var(--ink) !important; }
+  #areaChip { background: var(--surface) !important; color: var(--ink) !important; } #areaChip button { background: var(--pale) !important; color: var(--ink) !important; }
+
+  /* ランキング：1〜3位は丸い数字（金・銀・銅） */
+  .rk .n { font-family: var(--num); }
+  .rk.m1 .n, .rk.m2 .n, .rk.m3 .n { width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                    font-size: 13px; font-weight: 800; }
+  .rk.m1 .n { background: #e9c46a; color: #18202e !important; }
+  .rk.m2 .n { background: #cfd5de; color: #18202e !important; }
+  .rk.m3 .n { background: #dcae86; color: #18202e !important; }
+  /* 目立たせるカード（チーム売上など） */
+  .card.feature { background: #18202e !important; border-color: #18202e !important; color: #fff; }
+  :root[data-theme="dark"] .card.feature { background: #1d2a44 !important; border-color: #2c3d5f !important; }
+  .card.feature h3, .card.feature .big { color: #fff !important; }
+  .card.feature .sub, .card.feature h3 small { color: #b8c4d8 !important; }
+  .card.feature .bar { background: rgba(255,255,255,.14) !important; } .card.feature .bar i { background: #5b8def !important; }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  #overlay { background: var(--veil) !important; color: var(--ink); }
+  #goalBox { background: rgba(0,0,0,.55) !important; }
+  .spinner { border-color: var(--track) !important; border-top-color: var(--btn) !important; }
+
+  /* パソコン：左にメニュー（#lfSide は下のスクリプトで作る） */
+  #lfSide { display: none; }
+  @media (min-width: 1024px) {
+    body.lf-side { padding-left: 264px !important; padding-right: 32px !important; }
+    body.lf-side .lf-bar { margin: 0 -32px 20px; padding-left: 32px; padding-right: 32px; }
+    body.lf-side .lf-back { display: none; }
+    body.lf-side > .hero { margin-left: -32px !important; margin-right: -32px !important; padding-left: 40px !important; }
+    #lfSide { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: 232px; z-index: 40; flex-direction: column; gap: 22px;
+              padding: 26px 14px; box-sizing: border-box; overflow-y: auto; background: #111824; color: #eef2f8; }
+    #lfSide .lg { display: block; padding: 0 10px; text-decoration: none; color: #eef2f8; }
+    #lfSide .lg small { display: block; font-family: var(--en); font-size: 11px; letter-spacing: .35em; color: #7fa2e8; }
+    #lfSide .lg b { font-family: "Shippori Mincho B1", serif; font-size: 22px; letter-spacing: .12em; }
+    #lfSide nav { display: flex; flex-direction: column; gap: 2px; }
+    #lfSide nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #b8c4d8; text-decoration: none; font-size: 14px; }
+    #lfSide nav a:hover { background: #1a2333; color: #fff; }
+    #lfSide nav a.on { background: #2a56a8; color: #fff; font-weight: 700; }
+    #lfSide nav a span { font-family: var(--en); font-size: 9px; letter-spacing: .2em; color: #6f82a6; width: 58px; flex: none; }
+    #lfSide nav a.on span { color: #c9d8f7; }
+  }
+</style>
+<script>
+  // 右上の明るい・暗いボタンと、パソコンの左メニュー
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.documentElement;
+    var dark = function () { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+    var SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+    var MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    var host = document.querySelector('.lf-bar') || document.querySelector('.hero');
+    if (host) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'lf-theme';
+      var paint = function () { b.innerHTML = dark() ? SUN : MOON; b.setAttribute('aria-label', dark() ? '明るい表示にする' : '暗い表示にする'); };
+      b.onclick = function () { var t = dark() ? 'light' : 'dark'; root.setAttribute('data-theme', t); try { localStorage.setItem('lfTheme', t); } catch (e) {} paint(); };
+      paint();
+      if (host.classList.contains('hero')) { b.style.position = 'absolute'; b.style.top = '18px'; b.style.right = '16px'; b.style.zIndex = '2'; host.appendChild(b); }
+      else host.insertBefore(b, host.querySelector('.who'));
+    }
+    // 地図の画面は全面を地図に使うので左メニューを出さない
+    if (document.getElementById('map')) return;
+    var gh = /github\.io$/.test(location.hostname);
+    var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
+    var base = a0 ? a0.href.split('?')[0] : '';
+    var MAP = 'map.html';
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['tataki', '叩きカウンター', 'COUNTER'],
+                 ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['settings', '設定', 'SETTINGS'], ['map', '営業マップ', 'MAP']];
+    var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
+    var title = (document.querySelector('.lf-t b') || {}).textContent || '';
+    var file = location.pathname.split('/').pop();
+    var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var side = document.createElement('aside');
+    side.id = 'lfSide';
+    side.innerHTML = '<a class="lg" target="_top" href="' + esc(href('menu')) + '"><small>LIEN FORT</small><b>住宅設備</b></a><nav>' + PAGES.map(function (p) {
+      var on = gh ? file === p[0] + '.html' : title.replace('催事 お客様登録', '催事のお客様登録') === p[1];
+      return '<a target="_top" class="' + (on ? 'on' : '') + '" href="' + esc(href(p[0])) + '"><span>' + p[2] + '</span>' + p[1] + '</a>';
+    }).join('') + '</nav>';
+    document.body.appendChild(side);
+    document.body.classList.add('lf-side');
+  });
+</script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>設定</b></div></header>
+  <div class="wrap">
+    <div class="tabs"><button data-v="rank" class="on">ランキング</button><button data-v="me">自分の成績</button><button data-v="gyaku">逆算</button><button data-v="saiji">催事</button>
+      <button data-v="list" class="ad hide">KPI一覧</button><button data-v="one" class="ad hide">KPI個人</button><a class="tablink" href="sales.html">売上 ›</a></div>
+    <div class="seg" id="mon"><button data-p="0" class="on">今月</button><button data-p="1">先月</button></div>
+    <div id="msg"></div>
+    <div id="view"></div>
+    <div class="admin" id="adminBox"></div>
+  </div>
+  <div id="overlay"><div class="spinner"></div>読み込み中…</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const yen = v => v == null ? '-' : '¥' + Math.round(v).toLocaleString();
+  const man = v => v == null ? '-' : v >= 10000 ? (Math.round(v / 1000) / 10).toLocaleString() + '万' : '¥' + Math.round(v).toLocaleString();
+  const pct = v => v == null || !isFinite(v) ? '-' : (Math.round(v * 1000) / 10) + '%';
+  const num = v => v == null ? '-' : Math.round(v * 10) / 10;
+  const rate = (a, b) => b ? a / b : null;
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
+
+  // 入力・メンバーは同じ画面を別の項目として開く（?page=input / member、ホーム画面版は input.html / member.html）
+  const MODE = 'settings';
+  let D = null, view = 'rank', prev = 0, role = 'ct', I = null, iSheet = 'クローザー', MB = null, mTable = '叩き';
+
+  // 前に読んだ数字をすぐ出して、裏で最新を読む（読み込みに10秒ほどかかるため）
+  function load() {
+    const key = 'kpiCache' + prev + (store('jAdmin') ? 'a' : '');
+    let cached = null;
+    try { cached = JSON.parse(store(key) || 'null'); } catch (e) {}
+    if (cached) { D = cached; render(); $('msg').textContent = '最新の数字を読み込み中…'; } else document.body.classList.add('busy');
+    google.script.run.withSuccessHandler(r => {
+      document.body.classList.remove('busy');
+      D = r; $('msg').textContent = '';
+      store(key, JSON.stringify(r));
+      if (store('jAdmin') && !D.admin) { store('jAdmin', null); $('msg').textContent = '管理者の合言葉が違います'; }
+      if (!D.admin && (view === 'list' || view === 'one' || view === 'input' || view === 'member')) view = 'rank';
+      render();
+    }).withFailureHandler(e => { document.body.classList.remove('busy'); $('msg').textContent = 'エラー: ' + e.message; })
+      .kpiData(store('jAdmin') || '', !!prev);
+  }
+
+  function render() {
+    if (!D) return; // KPI の数字が届く前に押されたとき
+    document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v === view); if (b.classList.contains('ad')) b.classList.toggle('hide', !D.admin); });
+    document.querySelectorAll('#mon button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === prev));
+    $('mon').classList.toggle('hide', view === 'saiji' || !!MODE); // 催事は自分の期間（今月・先月・全期間）
+    $('view').innerHTML = '';
+    ({ rank: renderRank, me: renderMe, gyaku: renderGyaku, saiji: renderSaiji, list: renderList, one: renderOne, input: renderInput, member: renderMember })[view]();
+    renderAdmin();
+  }
+
+  // ===== 共通の部品 =====
+  function card(title, sub) {
+    const c = document.createElement('div');
+    c.className = 'card';
+    c.innerHTML = '<h3>' + esc(title) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</h3>';
+    return c;
+  }
+  function barHtml(v, goal) {
+    const r = goal ? Math.min(1, (v || 0) / goal) : 0;
+    return '<div class="bar"><i class="' + (r >= 1 ? 'ok' : '') + '" style="width:' + (r * 100) + '%"></i></div>';
+  }
+  // list: [{name, v}]、fmt：値の表示
+  function ranking(title, list, fmt, sub) {
+    const c = card(title, sub), top = list.filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10), max = top.length ? top[0].v : 0;
+    if (!top.length) c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>');
+    let rank = 0, last = null;
+    top.forEach((x, i) => {
+      if (x.v !== last) { rank = i + 1; last = x.v; }
+      c.insertAdjacentHTML('beforeend', '<div class="rk m' + rank + '"><div class="n">' + rank + '</div><div>' + esc(x.name) +
+        (x.group ? ' <small>' + esc(x.group) + '</small>' : '') + '</div><div class="v">' + fmt(x.v) + '</div>' + barHtml(x.v, max) + '</div>');
+    });
+    return c;
+  }
+  function goalCard(title, v, goal, fmt) {
+    const c = card(title);
+    c.insertAdjacentHTML('beforeend', '<div class="big">' + fmt(v) + '</div><div class="sub">目標 ' + fmt(goal) + '（' + pct(rate(v, goal)) + '）</div>' + barHtml(v, goal));
+    return c;
+  }
+  // 日ごとの棒グラフ（days：{yyyy-MM-dd: 値}）
+  function chart(title, days, fmt, color) {
+    const c = card(title), keys = Object.keys(days).sort();
+    c.classList.add('chart');
+    if (!keys.length) { c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>'); return c; }
+    const y = D.ym.split('-').map(Number), last = new Date(y[0], y[1], 0).getDate(), max = Math.max(...keys.map(k => days[k]), 1);
+    const W = 310, H = 130, bw = W / last;
+    let svg = '<svg viewBox="0 0 ' + W + ' ' + (H + 16) + '" preserveAspectRatio="none">';
+    for (let d = 1; d <= last; d++) {
+      const k = D.ym + '-' + String(d).padStart(2, '0'), v = days[k] || 0, h = v / max * H;
+      svg += '<rect x="' + ((d - 1) * bw + 1) + '" y="' + (H - h) + '" width="' + (bw - 2) + '" height="' + h + '" rx="1.5" fill="' + (k === D.today ? '#e67e22' : color) + '"><title>' + d + '日 ' + fmt(v) + '</title></rect>';
+      if (d === 1 || d % 5 === 0) svg += '<text x="' + ((d - 0.5) * bw) + '" y="' + (H + 13) + '" font-size="9" text-anchor="middle" fill="#888">' + d + '</text>';
+    }
+    c.insertAdjacentHTML('beforeend', svg + '</svg><div class="sub">一番多い日 ' + fmt(max) + '・合計 ' + fmt(keys.reduce((a, k) => a + days[k], 0)) + '</div>');
+    return c;
+  }
+  const dayMap = key => Object.fromEntries(Object.entries(D.days).map(([k, v]) => [k, v[key]]).filter(x => x[1]));
+
+  // ===== ランキング（全員） =====
+  function renderRank() {
+    const g = document.createElement('div');
+    g.className = 'grid';
+    g.appendChild(goalCard(D.month + '月 チーム売上', D.team.sales, D.team.salesGoal, yen)).classList.add('feature');
+    g.appendChild(goalCard(D.month + '月 契約件数', D.team.count, D.team.countGoal, v => v == null ? '-' : v + '件'));
+    if (!D.prev) {
+      const t = D.todayPlayers.slice().sort((a, b) => b.a - a.a || b.k - a.k)[0], c = card('今日のMVP', 'アポが一番多い人');
+      c.insertAdjacentHTML('beforeend', t ? '<div class="mvp"><div class="medal">MVP</div><div><div class="big">' + esc(t.name) + '</div><div class="sub">アポ ' + t.a + '件・叩き ' + t.k + '軒</div></div></div>' : '<div class="note">今日の記録はまだありません</div>');
+      g.appendChild(c);
+    }
+    g.appendChild(ranking('クローザー 売上', D.closers.map(x => ({ name: x.name, v: x.sales })), yen));
+    g.appendChild(ranking('クローザー 契約件数', D.closers.map(x => ({ name: x.name, v: x.count })), v => v + '件'));
+    ['フル', 'スポット', 'インターン'].forEach(gr => {
+      const l = D.apos.filter(x => x.group === gr);
+      if (l.length) g.appendChild(ranking('アポ数（' + gr + '）', l.map(x => ({ name: x.name, v: x.a })), v => v + '件', '今月'));
+    });
+    if (D.week) g.appendChild(ranking('今週のアポ数', D.week.players.map(x => ({ name: x.name, group: x.group, v: x.a })), v => v + '件', D.week.label));
+    g.appendChild(ranking('アポインター 売上', D.apSales.map(x => ({ name: x.name, v: x.sales })), yen, '成約したお客様のアポ'));
+    g.appendChild(ranking('叩き数', D.players.map(x => ({ name: x.name, group: x.group, v: x.k })), v => v + '軒'));
+    $('view').appendChild(g);
+  }
+
+  // ===== 自分の成績（全員） =====
+  function names() {
+    return [...new Set(D.players.map(x => x.name).concat(D.apos.map(x => x.name), D.closers.map(x => x.name)))].filter(Boolean);
+  }
+  function nameSelect(key, onchange) {
+    const r = document.createElement('div'), s = document.createElement('select'), cur = store(key) || '';
+    r.className = 'row';
+    s.add(new Option('名前を選ぶ', ''));
+    names().forEach(n => s.add(new Option(n, n)));
+    s.value = names().includes(cur) ? cur : '';
+    s.onchange = () => { store(key, s.value); onchange(); };
+    r.appendChild(s);
+    $('view').appendChild(r);
+    return s.value;
+  }
+  function renderMe() {
+    const me = nameSelect('kpiMe', render);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">自分の名前を選ぶと、今月の数字と目標が出ます</div>'); return; }
+    const g = document.createElement('div');
+    g.className = 'grid';
+    const p = D.players.find(x => x.name === me), a = D.apos.find(x => x.name === me), c = D.closers.find(x => x.name === me);
+    const s = D.apSales.find(x => x.name === me), t = D.todayPlayers.find(x => x.name === me), w = D.week && D.week.players.find(x => x.name === me);
+    if (c) { g.appendChild(goalCard('売上（クローザー）', c.sales, c.salesGoal, yen)); g.appendChild(goalCard('契約件数', c.count, c.countGoal, v => v == null ? '-' : v + '件')); }
+    if (a) g.appendChild(goalCard('アポ数', a.a, a.goal, v => v == null ? '-' : v + '件'));
+    if (a && (a.ry != null || a.ka != null)) {
+      // 両面・片面のアポと、そこから商談に入った数（不在・フロントアウト以外）
+      const k = card('両面・片面（' + D.month + '月）'), n = v => Number(v) || 0;
+      k.insertAdjacentHTML('beforeend', '<div class="kv"><span>両面アポ</span><b>' + n(a.ry) + '件</b><span>両面から商談</span><b>' + n(a.rm) + '件（' + pct(rate(n(a.rm), n(a.ry))) + '）</b>' +
+        '<span>片面アポ</span><b>' + n(a.ka) + '件</b><span>片面から商談</span><b>' + n(a.km) + '件（' + pct(rate(n(a.km), n(a.ka))) + '）</b></div>');
+      g.appendChild(k);
+    }
+    if (p) {
+      const k = card('叩き（' + D.month + '月）');
+      k.insertAdjacentHTML('beforeend', '<div class="kv"><span>叩き数</span><b>' + p.k + '軒</b><span>対面数</span><b>' + p.t + '</b><span>アポ</span><b>' + p.a + '件</b>' +
+        '<span>対面率</span><b>' + pct(rate(p.t, p.k)) + '</b><span>対面からのアポ率</span><b>' + pct(rate(p.a, p.t)) + '</b>' +
+        (w ? '<span>今週のアポ</span><b>' + w.a + '件</b>' : '') + (t ? '<span>今日</span><b>叩き' + t.k + '・アポ' + t.a + '</b>' : '') +
+        ((gl => gl ? '<span>今日の目標</span><b>叩き' + gl.k + '・対面' + gl.t + '・アポ' + gl.a + '</b>' : '')((D.goals || []).find(x => x.name === me))) + '</div>');
+      g.appendChild(k);
+    }
+    if (s) {
+      const k = card('自分のアポからの成約');
+      k.insertAdjacentHTML('beforeend', '<div class="big">' + yen(s.sales) + '</div><div class="sub">' + s.count + '件</div>');
+      g.appendChild(k);
+    }
+    if (!g.children.length) g.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの' + D.month + '月の数字はまだありません</div>');
+    $('view').appendChild(g);
+  }
+
+  // ===== 逆算（全員）：目標の件数から、先月の率で「あと何件いるか」をさかのぼる =====
+  const EDIT = {}; // 率・目標を変えて試した値（読み直すと先月の率に戻る）
+  const sum = (list, k) => list.reduce((t, x) => t + (Number(x[k]) || 0), 0);
+  function daysLeft() {
+    const [y, m, d] = D.today.split('-').map(Number);
+    return new Date(y, m, 0).getDate() - d + 1; // 今日を入れた今月の残りの日数
+  }
+  // stages：上から 目標の段階（goal・actual）→ 次の段階（rate＝次÷前 の逆、actual）…
+  function gyakuCard(id, title, stages) {
+    const c = card(title), box = document.createElement('div'), E = EDIT[id] = EDIT[id] || {}, left = daysLeft();
+    const perDay = v => v == null ? '-' : v / left >= 10 ? Math.ceil(v / left) : Math.ceil(v / left * 10) / 10;
+    const draw = () => {
+      const goal = E.goal != null ? E.goal : stages[0].goal;
+      let remain = goal == null ? null : Math.max(0, goal - (Number(stages[0].actual) || 0));
+      let h = '<table class="gy"><tr><th></th><th>今月の実績</th><th>あと</th><th>1日あたり</th></tr>';
+      stages.forEach((st, i) => {
+        if (i) { const r = E['r' + i] != null ? E['r' + i] / 100 : st.rate; remain = remain == null || !r ? null : remain / r; }
+        h += '<tr><td>' + st.label + '</td><td>' + (st.actual == null ? '-' : st.actual + st.unit) + '</td><td><b>' + (remain == null ? '-' : Math.ceil(remain) + st.unit) + '</b></td><td>' + (remain == null ? '-' : perDay(remain) + st.unit) + '</td></tr>';
+      });
+      box.innerHTML = h + '</table>';
+    };
+    c.appendChild(box);
+    const f = document.createElement('div');
+    f.className = 'gyin';
+    const inp = (label, key, val, sub) => {
+      f.insertAdjacentHTML('beforeend', '<span>' + label + '</span>');
+      const x = document.createElement('input');
+      x.type = 'number'; x.inputMode = 'decimal'; x.step = 'any'; x.min = 0; x.value = E[key] != null ? E[key] : val == null ? '' : val;
+      x.oninput = () => { E[key] = x.value === '' ? null : Number(x.value); draw(); };
+      f.appendChild(x);
+      if (sub) f.insertAdjacentHTML('beforeend', '<small>' + sub + '</small>');
+    };
+    inp('目標（' + stages[0].label + '）' + stages[0].unit, 'goal', stages[0].goal, stages[0].goal == null ? '目標がまだ入っていません。数字を入れると試せます' : '');
+    stages.slice(1).forEach((st, j) => inp(st.rateLabel + ' %', 'r' + (j + 1), st.rate == null ? null : Math.round(st.rate * 1000) / 10,
+      st.rate == null ? D.base.month + '月の数字がないので、率を入れると出ます' : D.base.month + '月の' + (st.team ? 'チームの' : '') + '率 ' + pct(st.rate)));
+    const rs = document.createElement('button');
+    rs.className = 'gyreset'; rs.textContent = D.base.month + '月の率に戻す'; rs.style.marginTop = '10px';
+    rs.onclick = () => { Object.keys(E).forEach(k => delete E[k]); render(); };
+    c.appendChild(f); c.appendChild(rs);
+    draw();
+    return c;
+  }
+  function renderGyaku() {
+    if (prev) { $('view').insertAdjacentHTML('beforeend', '<div class="note">逆算は今月だけです</div>'); return; }
+    if (!D.base) { $('view').insertAdjacentHTML('beforeend', '<div class="note">最新の数字を読み込み中…</div>'); return; }
+    const B = D.base, bc = B.closers, bp = B.players;
+    const T = { s: sum(bc, 's'), c: sum(bc, 'c'), k: sum(bp, 'k'), t: sum(bp, 't'), a: sum(bp, 'a') };
+    const team = { close: rate(T.c, T.s), meet: rate(T.s, T.a), apo: rate(T.a, T.t), face: rate(T.t, T.k) };
+    const g = document.createElement('div');
+    g.className = 'grid';
+    const st = (label, unit, actual, rateLabel, r, isTeam) => ({ label: label, unit: unit, actual: actual, rateLabel: rateLabel, rate: r, team: isTeam });
+    const L = { close: '成約率（商談→契約）', meet: '商談化率（アポ→商談）', apo: 'アポ率（対面→アポ）', face: '対面率（叩き→対面）' };
+    const t0 = st('契約', '件', D.team.count); t0.goal = D.team.countGoal;
+    g.appendChild(gyakuCard('team', 'チーム全体', [t0,
+      st('商談', '件', sum(D.closers, 's'), L.close, team.close), st('アポ', '件', sum(D.players, 'a'), L.meet, team.meet),
+      st('対面', '件', sum(D.players, 't'), L.apo, team.apo), st('叩き', '軒', sum(D.players, 'k'), L.face, team.face)]));
+    $('view').appendChild(g);
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝今日を入れた残り' + daysLeft() + '日で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
+    const me = nameSelect('kpiMe', render);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">自分の名前を選ぶと、自分の率での逆算も出ます</div>'); return; }
+    const m = document.createElement('div');
+    m.className = 'grid';
+    const own = (v, b) => v == null ? [b, true] : [v, false]; // 自分の先月の数字がなければチームの率
+    const c = D.closers.find(x => x.name === me), pc = bc.find(x => x.name === me);
+    if (c) {
+      const r = own(pc && rate(pc.c, pc.s), team.close), s0 = st('契約', '件', c.count); s0.goal = c.countGoal;
+      m.appendChild(gyakuCard('c:' + me, me + '（クローザー）', [s0, st('商談', '件', c.s, L.close, r[0], r[1]), st('アポ', '件', null, L.meet, team.meet, true)]));
+    }
+    const p = D.players.find(x => x.name === me), a = D.apos.find(x => x.name === me), pp = bp.find(x => x.name === me);
+    if (p || a) {
+      const rf = own(pp && rate(pp.t, pp.k), team.face), ra = own(pp && rate(pp.a, pp.t), team.apo);
+      const s0 = st('アポ', '件', p ? p.a : a.a); s0.goal = a ? a.goal : null;
+      m.appendChild(gyakuCard('p:' + me, me + '（叩き）', [s0, st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])]));
+    }
+    if (!m.children.length) m.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの目標・数字はまだありません</div>');
+    $('view').appendChild(m);
+  }
+
+  // ===== 催事（全員）：催事日報と催事顧客管理から、チームの歩留まり・会場・人・日ごと・月の目標 =====
+  let SJ = null, sjPer = 'this';
+  function loadSaiji() {
+    try { SJ = JSON.parse(store('saijiCache') || 'null'); } catch (e) {}
+    if (SJ && !SJ.met) SJ = null; // 前の形の保存（商談・成約の区分なし）は使わない
+    render();
+    google.script.run.withSuccessHandler(r => { SJ = r; store('saijiCache', JSON.stringify(r)); if (view === 'saiji') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; if (view === 'saiji' && !SJ) $('view').innerHTML = '<div class="note">エラー: ' + esc(e.message) + '</div>'; }).saijiData();
+  }
+  function sjYm() {
+    if (sjPer === 'all') return '';
+    const [y, m] = SJ.today.split('-').map(Number), d = new Date(y, m - 1 - (sjPer === 'prev' ? 1 : 0), 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  const sjNum = x => Number(String(x == null ? '' : x).replace(/[,%¥円\s]/g, '')) || 0;
+  function sjTable(title, head, rows, sub) {
+    const c = card(title, sub);
+    c.style.gridColumn = '1 / -1';
+    if (!rows.length) { c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>'); return c; }
+    c.insertAdjacentHTML('beforeend', '<div class="tbl"><table><tr>' + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
+      rows.map(r => '<tr>' + r.map(x => '<td>' + esc(x) + '</td>').join('') + '</tr>').join('') + '</table></div>');
+    return c;
+  }
+  function sjChart(title, days, color, ym) {
+    const c = card(title);
+    let keys = Object.keys(days).sort();
+    if (ym) { const [y, m] = ym.split('-').map(Number), last = new Date(y, m, 0).getDate(); keys = [...Array(last)].map((_, i) => ym + '-' + String(i + 1).padStart(2, '0')); }
+    if (!keys.length || !Object.keys(days).length) { c.insertAdjacentHTML('beforeend', '<div class="note">まだありません</div>'); return c; }
+    const max = Math.max(...keys.map(k => days[k] || 0), 1), W = 310, H = 120, bw = W / keys.length;
+    let svg = '<svg viewBox="0 0 ' + W + ' ' + (H + 16) + '" preserveAspectRatio="none">';
+    keys.forEach((k, i) => {
+      const v = days[k] || 0, h = v / max * H, d = Number(k.slice(8));
+      svg += '<rect x="' + (i * bw + 1) + '" y="' + (H - h) + '" width="' + Math.max(1, bw - 2) + '" height="' + h + '" rx="1.5" fill="' + color + '"><title>' + k.slice(5).replace('-', '/') + ' ' + v + '</title></rect>';
+      if (ym ? (d === 1 || d % 5 === 0) : (i === 0 || i === keys.length - 1)) svg += '<text x="' + ((i + 0.5) * bw) + '" y="' + (H + 13) + '" font-size="9" text-anchor="middle" fill="#888">' + (ym ? d : k.slice(5).replace('-', '/')) + '</text>';
+    });
+    c.insertAdjacentHTML('beforeend', svg + '</svg><div class="sub">一番多い日 ' + max + '・合計 ' + keys.reduce((a, k) => a + (days[k] || 0), 0) + '</div>');
+    return c;
+  }
+  function renderSaiji() {
+    if (!SJ) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    [['this', '今月'], ['prev', '先月'], ['all', '全期間']].forEach(([k, t]) => {
+      const b = document.createElement('button'); b.textContent = t; b.className = sjPer === k ? 'on' : '';
+      b.onclick = () => { sjPer = k; render(); }; seg.appendChild(b);
+    });
+    $('view').appendChild(seg);
+    const ym = sjYm(), inP = d => !ym || String(d || '').startsWith(ym), CI = { date: 1, venue: 2, cc: 7, qp: 8, ap: 9, cl: 10, status: 11, price: 18 };
+    const NP = SJ.nippo.filter(r => inP(r.date)), col = (rows, name) => { const i = SJ.nhead.indexOf(name); return i < 0 ? 0 : rows.reduce((a, r) => a + sjNum(r.d[i]), 0); };
+    const CU = SJ.cust.filter(c => inP(c.v[CI.date])), isMet = c => SJ.met.includes(c.v[CI.status]), isWon = c => SJ.won.includes(c.v[CI.status]);
+    const sum = l => l.filter(isWon).reduce((a, c) => a + sjNum(c.v[CI.price]), 0);
+    const T = { dist: col(NP, 'キャッチ配布数'), catch: col(NP, 'キャッチ成功数'), seat: col(NP, '着座数'), apo: CU.length, met: CU.filter(isMet).length, won: CU.filter(isWon).length, sales: sum(CU) };
+    const g = document.createElement('div');
+    g.className = 'grid';
+    // 月の目標
+    if (ym) {
+      const G = (SJ.goals || {})[ym] || {}, label = Number(ym.slice(5)) + '月';
+      g.appendChild(goalCard(label + ' 催事 アポ', T.apo, G.apo, v => v == null ? '-' : v + '件'));
+      g.appendChild(goalCard(label + ' 催事 成約', T.won, G.won, v => v == null ? '-' : v + '件'));
+      g.appendChild(goalCard(label + ' 催事 売上', T.sales, G.sales, yen)).classList.add('feature');
+      const f = card(label + 'の目標を入れる', '全員が入れられます');
+      f.insertAdjacentHTML('beforeend', '<div class="gyin"><span>アポ目標（件）</span><input id="sgApo" type="number" inputmode="numeric" min="0" value="' + (G.apo || '') + '">' +
+        '<span>成約目標（件）</span><input id="sgWon" type="number" inputmode="numeric" min="0" value="' + (G.won || '') + '">' +
+        '<span>売上目標（円）</span><input id="sgSales" type="number" inputmode="numeric" min="0" style="width:140px" value="' + (G.sales || '') + '"></div><button class="gyreset" id="sgSave" style="margin-top:10px">保存</button>');
+      g.appendChild(f);
+    }
+    // 歩留まり
+    const fun = card('チームの歩留まり', ym ? Number(ym.slice(5)) + '月' : '全期間');
+    const steps = [['キャッチ配布', T.dist, null], ['キャッチ成功', T.catch, rate(T.catch, T.dist)], ['着座', T.seat, rate(T.seat, T.catch)], ['アポ', T.apo, rate(T.apo, T.seat)],
+      ['商談', T.met, rate(T.met, T.apo)], ['成約', T.won, rate(T.won, T.met)]];
+    fun.insertAdjacentHTML('beforeend', '<table class="gy"><tr><th></th><th>数</th><th>前からの率</th></tr>' +
+      steps.map(s => '<tr><td>' + s[0] + '</td><td><b>' + s[1] + '</b></td><td>' + (s[2] == null ? '' : pct(s[2])) + '</td></tr>').join('') +
+      '<tr><td>売上</td><td colspan="2"><b>' + yen(T.sales) + '</b></td></tr></table><div class="sub">配布〜着座は日報、アポ〜成約は催事顧客管理（獲得日の月）。商談＝現調・見積より先に進んだ人</div>');
+    g.appendChild(fun);
+    // 日ごとの推移
+    const apoDays = {}, seatDays = {}, si = SJ.nhead.indexOf('着座数');
+    CU.forEach(c => { if (c.v[CI.date]) apoDays[c.v[CI.date]] = (apoDays[c.v[CI.date]] || 0) + 1; });
+    NP.forEach(r => { seatDays[r.date] = (seatDays[r.date] || 0) + (si < 0 ? 0 : sjNum(r.d[si])); });
+    g.appendChild(sjChart('日ごとのアポ', apoDays, '#2a56a8', ym));
+    g.appendChild(sjChart('日ごとの着座', seatDays, '#16a085', ym));
+    // 会場ごと
+    const venues = [...new Set(NP.map(r => r.venue).concat(CU.map(c => c.v[CI.venue])))].filter(Boolean);
+    const vr = venues.map(v => {
+      const n = NP.filter(r => r.venue === v), c = CU.filter(x => x.v[CI.venue] === v), seat = col(n, '着座数');
+      return { v: v, row: [v, n.length, col(n, 'キャッチ配布数'), seat, c.length, pct(rate(c.length, seat)), c.filter(isMet).length, c.filter(isWon).length, yen(sum(c))], s: sum(c), a: c.length };
+    }).sort((a, b) => b.s - a.s || b.a - a.a);
+    g.appendChild(sjTable('会場ごと', ['会場', '日数', '配布', '着座', 'アポ', '着座アポ率', '商談', '成約', '売上'], vr.map(x => x.row)));
+    // 人ごと
+    const who = (i) => [...new Set(CU.map(c => c.v[i]).filter(Boolean))];
+    const ap = who(CI.ap).map(n => { const c = CU.filter(x => x.v[CI.ap] === n); return { s: sum(c), a: c.length, row: [n, c.length, c.filter(isMet).length, c.filter(isWon).length, pct(rate(c.filter(isWon).length, c.length)), yen(sum(c))] }; }).sort((a, b) => b.a - a.a || b.s - a.s);
+    g.appendChild(sjTable('AP（アポを取った人）', ['名前', 'アポ', '商談', '成約', 'アポ成約率', '売上'], ap.map(x => x.row)));
+    const cl = who(CI.cl).map(n => { const c = CU.filter(x => x.v[CI.cl] === n), m = c.filter(isMet).length, w = c.filter(isWon).length; return { s: sum(c), row: [n, c.length, m, w, pct(rate(w, m)), yen(sum(c))] }; }).sort((a, b) => b.s - a.s);
+    g.appendChild(sjTable('CL（クローザー）', ['名前', '担当', '商談', '成約', '成約率', '売上'], cl.map(x => x.row)));
+    [['CC（キャッチャー）', CI.cc], ['QP（アンケート）', CI.qp]].forEach(([t, i]) => {
+      const r = who(i).map(n => { const c = CU.filter(x => x.v[i] === n); return { a: c.length, row: [n, c.length, c.filter(isWon).length, yen(sum(c))] }; }).sort((a, b) => b.a - a.a);
+      g.appendChild(sjTable(t, ['名前', 'アポ', '成約', '売上'], r.map(x => x.row)));
+    });
+    $('view').appendChild(g);
+    if ($('sgSave')) $('sgSave').onclick = () => {
+      document.body.classList.add('busy');
+      google.script.run.withSuccessHandler(r => { document.body.classList.remove('busy'); SJ = r; store('saijiCache', JSON.stringify(r)); $('msg').textContent = '目標を保存しました'; render(); })
+        .withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })
+        .saijiGoalSave(ym, { apo: $('sgApo').value, won: $('sgWon').value, sales: $('sgSales').value });
+    };
+  }
+
+  // ===== 入力（管理者）：今月の表の、数式でない欄（目標・キャンセル数など） =====
+  function loadInput() {
+    I = null; render();
+    google.script.run.withSuccessHandler(r => { I = r; if (view === 'input') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).inputData(store('jAdmin') || '');
+  }
+  function renderInput() {
+    if (!I) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    I.forEach(b => {
+      const x = document.createElement('button');
+      x.textContent = b.sheet + '（' + b.month + '）'; x.className = b.sheet === iSheet ? 'on' : '';
+      x.onclick = () => { iSheet = b.sheet; render(); };
+      seg.appendChild(x);
+    });
+    $('view').appendChild(seg);
+    const B = I.find(b => b.sheet === iSheet), r = document.createElement('div'), sel = document.createElement('select');
+    r.className = 'row';
+    sel.add(new Option('名前を選ぶ', ''));
+    B.names.filter(Boolean).forEach(n => sel.add(new Option(n, n)));
+    const key = 'kpiIn' + iSheet;
+    sel.value = B.names.includes(store(key)) ? store(key) : '';
+    sel.onchange = () => { store(key, sel.value); render(); };
+    r.appendChild(sel);
+    $('view').appendChild(r);
+    const me = sel.value, j = B.names.indexOf(me);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を選ぶと、その人の目標・手入力の欄が出ます（数式で自動の欄は出ません）</div>'); return; }
+    const c = card(me + ' さん（' + B.month + '）'), f = document.createElement('div');
+    f.className = 'fi';
+    B.rows.forEach(x => {
+      const l = document.createElement('label');
+      l.textContent = x.label;
+      f.appendChild(l);
+      if (!x.ed[j]) { f.insertAdjacentHTML('beforeend', '<div class="ro">自動</div>'); return; }
+      const i = document.createElement('input');
+      i.inputMode = 'numeric'; i.value = x.vals[j]; i.dataset.row = x.row; i.dataset.label = x.label; i.dataset.old = x.vals[j];
+      f.appendChild(i);
+    });
+    c.appendChild(f);
+    c.insertAdjacentHTML('beforeend', '<div class="acts" style="margin-top:14px"><button class="ok" id="inSave">保存</button></div><div class="note">変えた欄だけシートに入ります。金額は「30000000」のように数字で</div>');
+    $('view').appendChild(c);
+    $('inSave').onclick = () => {
+      const ch = [...f.querySelectorAll('input')].filter(i => i.value.trim() !== String(i.dataset.old)).map(i => ({ row: Number(i.dataset.row), label: i.dataset.label, value: i.value.trim() }));
+      if (!ch.length) { $('msg').textContent = '変わった欄がありません'; return; }
+      document.body.classList.add('busy');
+      google.script.run.withSuccessHandler(res => {
+        document.body.classList.remove('busy');
+        I = res; $('msg').textContent = '保存しました：' + me + '（' + ch.map(x => x.label).join('・') + '）';
+        render();
+      }).withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })
+        .inputSave(store('jAdmin') || '', iSheet, me, ch);
+    };
+  }
+
+  // ===== メンバー（管理者）：足す・名前を直す・来月から外す =====
+  function loadMember() {
+    MB = null; render();
+    google.script.run.withSuccessHandler(r => { MB = r; if (view === 'member') render(); })
+      .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).memberData(store('jAdmin') || '');
+  }
+  function memberCall(fn, args, done) {
+    document.body.classList.add('busy');
+    google.script.run.withSuccessHandler(r => {
+      document.body.classList.remove('busy');
+      MB = r; $('msg').textContent = done + (r.fixed ? '（' + r.fixed.join('・') + '）' : '');
+      render();
+    }).withFailureHandler(e => { document.body.classList.remove('busy'); alert(e.message); })[fn](store('jAdmin') || '', ...args);
+  }
+  function renderMember() {
+    if (!MB) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    MB.tables.forEach(t => {
+      const x = document.createElement('button');
+      x.textContent = t.table; x.className = t.table === mTable ? 'on' : '';
+      x.onclick = () => { mTable = t.table; render(); };
+      seg.appendChild(x);
+    });
+    $('view').appendChild(seg);
+    const T = MB.tables.find(t => t.table === mTable), out = MB.pending.filter(p => p.table === mTable);
+    const groups = [...new Set(T.groups.filter(Boolean))];
+    // 足す
+    const a = card('新しい人を足す', T.month + 'の表から');
+    a.insertAdjacentHTML('beforeend', '<div class="row">' + (groups.length ? '<select id="mGroup">' + groups.map(g => '<option>' + esc(g) + '</option>').join('') + '</select>' : '') +
+      '<input id="mName" placeholder="名前" style="flex:1"><button class="cancel" id="mAdd" style="padding:9px 16px;border-radius:10px;border:0;background:#2a56a8;color:#fff;font-weight:600">足す</button></div>');
+    $('view').appendChild(a);
+    $('mAdd').onclick = () => {
+      const n = $('mName').value.trim(), g = $('mGroup') ? $('mGroup').value : '';
+      if (!n) return;
+      if (!confirm(mTable + 'の表に「' + n + '」' + (g ? '（' + g + '）' : '') + 'を足しますか？')) return;
+      memberCall('memberAdd', [mTable, g, n], '足しました：' + n);
+    };
+    // 今のメンバー
+    const c = card('今のメンバー（' + T.names.filter(Boolean).length + '人）', '押すと名前を直す・来月から外す');
+    let last = null;
+    T.names.forEach((n, j) => {
+      if (!n) return;
+      if (T.groups[j] && T.groups[j] !== last) { last = T.groups[j]; c.insertAdjacentHTML('beforeend', '<div class="subh" style="color:#4b5567;margin:12px 0 4px">' + esc(last) + '</div>'); }
+      const o = out.find(p => p.name === n), d = document.createElement('div');
+      d.className = 'sl edit';
+      d.innerHTML = '<div><b></b> ' + (o ? '<span class="st x">' + esc(o.month) + 'から外す</span>' : '') + '</div><div></div>';
+      d.querySelector('b').textContent = n;
+      d.onclick = () => memberMenu(n, !!o);
+      c.appendChild(d);
+    });
+    $('view').appendChild(c);
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を直すと、今月の記録（叩きのログ・商談ログ・売上・商談予定）の名前も直ります。「来月から外す」は月替わりで来月の表から名前が消えます（今月の数字は残ります）。名前を直した人は、叩きカウンター・クローザー入力で名前を選び直してください</div>');
+  }
+  function memberMenu(n, out) {
+    const a = prompt(n + ' さん\n1：名前を直す\n2：' + (out ? '来月から外すのをやめる' : '来月から外す') + '\n番号を入れてください');
+    if (a === '1') {
+      const nn = prompt('新しい名前（今月の記録の名前も直ります）', n);
+      if (nn && nn.trim() && nn.trim() !== n) memberCall('memberRename', [mTable, n, nn.trim()], '名前を直しました：' + n + ' → ' + nn.trim());
+    } else if (a === '2') {
+      if (out) memberCall('memberRemove', [mTable, n, false], n + ' さんを外すのをやめました');
+      else if (confirm(n + ' さんを来月の' + mTable + 'の表から外しますか？（今月はそのまま）')) memberCall('memberRemove', [mTable, n, true], n + ' さんは来月から外れます');
+    }
+  }
+
+  // ===== KPI一覧（管理者） =====
+  const ROLES = { ct: ['プレイヤー（叩き）', 'ct'], ap: ['アポインター', 'ap'], cl: ['クローザー', 'cl'], wk: ['今週の叩き', 'wk'] };
+  // 表の値の書き方：率は%、お金は¥
+  function fmtCell(label, v, prevLabel) {
+    if (v == null) return '-';
+    if (/率|前月比/.test(label)) return pct(v);
+    if (/売上|単価|純売上/.test(label) || (label === '現状' && /売上/.test(prevLabel))) return yen(v);
+    return num(v);
+  }
+  // 今日の目標（カウンターで本人が入れたもの）と今日の実績
+  function goalTable() {
+    if (!D.goals || !D.goals.length) return;
+    const cell = (v, g) => '<td class="' + (v >= g ? 'good' : '') + '">' + v + ' / ' + g + (v >= g ? ' ✓' : ' <small style="color:#999">あと' + (g - v) + '</small>') + '</td>';
+    let h = '<div class="tbl" style="margin-bottom:12px"><table><tr><th>今日の目標</th><th>叩き数</th><th>対面数</th><th>アポ</th></tr>';
+    D.goals.slice().sort((x, y) => x.name.localeCompare(y.name, 'ja')).forEach(g => {
+      const t = D.todayPlayers.find(x => x.name === g.name) || { k: 0, t: 0, a: 0 };
+      h += '<tr><td>' + esc(g.name) + '</td>' + cell(t.k, g.k) + cell(t.t, g.t) + cell(t.a, g.a) + '</tr>';
+    });
+    $('view').insertAdjacentHTML('beforeend', h + '</table></div>');
+  }
+  function renderList() {
+    if (!D.prev) goalTable();
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    Object.keys(ROLES).forEach(k => {
+      if (k === 'wk' && !D.blocks.wk) return;
+      const b = document.createElement('button');
+      b.textContent = ROLES[k][0]; b.className = role === k ? 'on' : '';
+      b.onclick = () => { role = k; render(); };
+      seg.appendChild(b);
+    });
+    $('view').appendChild(seg);
+    const B = D.blocks[role];
+    if (!B) { $('view').insertAdjacentHTML('beforeend', '<div class="note">表が見つかりません</div>'); return; }
+    const ti = B.names.indexOf('合計');
+    const cols = B.rows.map((r, i) => ({ label: r[0], vals: r[1], prev: i ? B.rows[i - 1][0] : '' }));
+    let h = '<div class="tbl"><table><tr><th>' + esc(B.label) + '</th>' + cols.map(c => '<th>' + esc(c.label) + '</th>').join('') + '</tr>';
+    B.names.forEach((n, i) => {
+      if (!n) return;
+      const isT = i === ti;
+      if (!isT && cols.every(c => !c.vals[i])) return; // 全部0・空の人は出さない
+      h += '<tr class="' + (isT ? 'total' : '') + '"><td>' + esc(n) + (B.groups[i] && !isT ? ' <small style="color:#999;font-weight:400">' + esc(B.groups[i]) + '</small>' : '') + '</td>';
+      cols.forEach(c => {
+        const v = c.vals[i], avg = ti >= 0 ? c.vals[ti] : null;
+        const cls = !isT && /率/.test(c.label) && !/NG率|失注率|対象外率/.test(c.label) && v != null && avg != null ? (v >= avg ? 'good' : 'bad') : '';
+        h += '<td class="' + cls + '">' + fmtCell(c.label, v, c.prev) + '</td>';
+      });
+      h += '</tr>';
+    });
+    $('view').insertAdjacentHTML('beforeend', h + '</table></div><div class="note">率の緑＝チーム平均以上、赤＝平均より下（NG率・失注率・対象外率は色なし）。全部0の人は出していません</div>');
+    const g = document.createElement('div');
+    g.className = 'grid'; g.style.marginTop = '12px';
+    g.appendChild(chart('日ごとの売上', dayMap('s'), man, '#27ae60'));
+    g.appendChild(chart('日ごとのアポ', dayMap('a'), v => v + '件', '#2a56a8'));
+    g.appendChild(chart('日ごとの叩き数', dayMap('k'), v => v + '軒', '#8e44ad'));
+    $('view').appendChild(g);
+  }
+
+  // ===== KPI個人（管理者） =====
+  function renderOne() {
+    const me = nameSelect('kpiOne', render);
+    if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を選ぶと、その人の全部の数字（チーム平均と比べて）と日ごとのグラフが出ます</div>'); return; }
+    const g = document.createElement('div');
+    g.className = 'grid';
+    ['cl', 'ap', 'ct'].forEach(k => {
+      const B = D.blocks[k], i = B ? B.names.indexOf(me) : -1;
+      if (i < 0) return;
+      const ti = B.names.indexOf('合計'), c = card(ROLES[k][0], ti >= 0 ? '右は合計・平均' : '');
+      let h = '<div class="kv">';
+      B.rows.forEach((r, j) => {
+        const v = r[1][i], t = ti >= 0 ? r[1][ti] : null, prevL = j ? B.rows[j - 1][0] : '';
+        if (v == null && t == null) return;
+        const cls = /率/.test(r[0]) && !/NG率|失注率|対象外率/.test(r[0]) && v != null && t != null ? (v >= t ? 'good' : 'bad') : '';
+        h += '<span>' + esc(r[0]) + '</span><b class="' + cls + '">' + fmtCell(r[0], v, prevL) + (t != null ? ' <small style="color:#999;font-weight:400">／' + fmtCell(r[0], t, prevL) + '</small>' : '') + '</b>';
+      });
+      c.insertAdjacentHTML('beforeend', h + '</div>');
+      g.appendChild(c);
+    });
+    const L = D.log[me];
+    if (L) {
+      g.appendChild(chart('日ごとのアポ', Object.fromEntries(Object.entries(L).map(([d, v]) => [d, v.a])), v => v + '件', '#2a56a8'));
+      g.appendChild(chart('日ごとの叩き数', Object.fromEntries(Object.entries(L).map(([d, v]) => [d, v.k])), v => v + '軒', '#8e44ad'));
+    }
+    const mine = D.sales.filter(x => !x.cool && (x.closer === me || x.ap === me));
+    if (mine.length) {
+      const by = {};
+      mine.forEach(x => by[x.date] = (by[x.date] || 0) + x.price);
+      g.appendChild(chart('日ごとの成約（売上）', by, man, '#27ae60'));
+      const c = card('成約したお客様', mine.length + '件');
+      c.insertAdjacentHTML('beforeend', '<div class="kv">' + mine.map(x => '<span>' + esc(x.date.slice(5).replace('-', '/') + ' ' + x.customer) + '<br><small style="color:#999">' +
+        esc((x.closer === me ? 'AP ' + x.ap : 'CL ' + x.closer) + '・' + (x.product || '')) + '</small></span><b>' + yen(x.price) + '</b>').join('') + '</div>');
+      g.appendChild(c);
+    }
+    if (!g.children.length) g.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの' + D.month + '月の数字はまだありません</div>');
+    $('view').appendChild(g);
+  }
+
+  // ===== 管理者 =====
+  function renderAdmin() {
+    const box = $('adminBox');
+    if (D.admin) {
+      box.innerHTML = '<button id="adOut">管理者をやめる</button>';
+      $('adOut').onclick = () => { store('jAdmin', null); store('kpiCache0a', null); store('kpiCache1a', null); if (MODE) { D.admin = false; I = MB = null; render(); return; } view = 'rank'; load(); };
+      return;
+    }
+    box.innerHTML = '<button id="adIn">管理者</button><div id="adForm" class="hide" style="margin-top:8px"><input id="adPass" type="password" placeholder="管理者の合言葉"><button id="adGo">入る</button></div>';
+    $('adIn').onclick = () => { $('adForm').classList.remove('hide'); $('adPass').focus(); };
+    $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (!v) return; store('jAdmin', v); if (MODE) modeLoad(); else load(); };
+  }
+
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { view = b.dataset.v; if (view === 'saiji' && !SJ) loadSaiji(); else if (view === 'input' && !I) loadInput(); else if (view === 'member' && !MB) loadMember(); else render(); });
+  document.querySelectorAll('#mon button').forEach(b => b.onclick = () => { prev = Number(b.dataset.p); load(); });
+  // 入力・メンバーの画面：KPI の数字は読まず、管理者の合言葉があればその表だけ読む
+  function modeLoad() {
+    D = { admin: true }; // 入力・メンバーは管理者でなくても使える（2026-11-18〜）
+    const v = view;
+    if (v === 'input') I = null; else MB = null;
+    render();
+    google.script.run.withSuccessHandler(r => { if (v === 'input') I = r; else MB = r; $('msg').textContent = ''; if (view === v) render(); })
+      .withFailureHandler(e => {
+        $('msg').textContent = 'エラー: ' + e.message;
+      })[v === 'input' ? 'inputData' : 'memberData'](store('jAdmin') || '');
+  }
+  // 設定（2026-11-23）：入力とメンバーを1つの画面のタブにする
+  if (MODE) {
+    const t = document.querySelector('.tabs');
+    $('mon').classList.add('hide');
+    renderAdmin = () => { $('adminBox').innerHTML = ''; };
+    if (MODE === 'settings') {
+      t.innerHTML = '<button data-v="input">入力</button><button data-v="member">メンバー</button>';
+      view = store('setView') === 'member' ? 'member' : 'input';
+      t.querySelectorAll('button').forEach(b => b.onclick = () => { view = b.dataset.v; store('setView', view); if (view === 'input' ? I : MB) render(); else modeLoad(); });
+    } else { view = MODE; t.classList.add('hide'); }
+    modeLoad();
+  } else load();
+</script>
+</body>
+</html>
