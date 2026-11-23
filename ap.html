@@ -234,23 +234,6 @@
   <div id="pending"></div>
   <div class="count" id="count"></div>
 
-  <button class="close-btn" id="open-close">今日の締めを入れる</button>
-  <div id="close">
-    <h3>今日の締め（<span id="c-venue"></span>）</h3>
-    <label>日付</label><input id="c-date" type="date">
-    <div class="grid">
-      <div><label>スタッフ数</label><input id="c-staff" type="number" inputmode="numeric" min="0"></div>
-      <div><label>キャッチ配布数</label><input id="c-dist" type="number" inputmode="numeric" min="0"></div>
-      <div><label>キャッチ成功数</label><input id="c-catch" type="number" inputmode="numeric" min="0"></div>
-      <div><label>抽選参加数</label><input id="c-lottery" type="number" inputmode="numeric" min="0"></div>
-      <div><label>着座_両面</label><input id="c-seatW" type="number" inputmode="numeric" min="0"></div>
-      <div><label>着座_片面</label><input id="c-seatS" type="number" inputmode="numeric" min="0"></div>
-      <div><label>戸建数</label><input id="c-house" type="number" inputmode="numeric" min="0"></div>
-    </div>
-    <div class="calc" id="c-calc"></div>
-    <button class="ok" id="c-send">締めを送る</button>
-    <div class="calc">アポ獲得数（両面・片面）は、登録したお客様から自動で数えます。入れ直すと上書きします。</div>
-  </div>
   <div style="height:30px"></div>
 
 <script>
@@ -337,29 +320,6 @@
     document.querySelectorAll('.sides button').forEach(b => b.classList.toggle('on', b.dataset.side === v));
   }
 
-  // 今日の締め：会場は上で選んでいる会場
-  function num(id) { return $('c-' + id).value === '' ? '' : Number($('c-' + id).value); }
-  function calc() {
-    const d = num('dist'), c = num('catch'), w = num('seatW'), s = num('seatS');
-    $('c-calc').textContent = 'キャッチ失注数：' + (d === '' ? '-' : d - (c || 0)) + '　着座数：' + (w === '' && s === '' ? '-' : (w || 0) + (s || 0));
-  }
-  function sendClose() {
-    const it = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), venue: val('venue'), date: $('c-date').value };
-    CLOSE.forEach(k => it[k] = num(k));
-    if (!it.venue || !it.date) { alert('催事会場と日付を入れてください'); return; }
-    if (CLOSE.some(k => it[k] === '' || it[k] < 0)) { alert('数字を全部入れてください（0 も入れられます）'); return; }
-    if (it.catch > it.dist) { alert('キャッチ成功数が配布数より多くなっています'); return; }
-    if (!confirm(it.date + ' ' + it.venue + '\n配布 ' + it.dist + '・成功 ' + it.catch + '・着座 ' + (it.seatW + it.seatS) + '\nこの内容で送りますか？')) return;
-    cqueue.push(it); saveQueue();
-    CLOSE.forEach(k => $('c-' + k).value = '');
-    calc();
-    $('close').style.display = 'none';
-    $('msg').textContent = '締めを受け付けました：' + it.venue + (navigator.onLine ? '' : '（電波が戻ったら送ります）');
-    render();
-    window.scrollTo(0, 0);
-    flush();
-  }
-
   google.script.run.withSuccessHandler(cfg => {
     fill('venue', cfg.venues);
     ['ap', 'cc', 'qp'].forEach(id => fill(id, cfg.names));
@@ -370,13 +330,6 @@
   SELECTS.forEach(id => $(id).onchange = () => { $(id + '-o').style.display = $(id).value === OTHER ? 'block' : 'none'; });
   $('send').onclick = send;
   document.querySelectorAll('.sides button').forEach(b => b.onclick = () => setSide(b.dataset.side));
-  $('open-close').onclick = () => {
-    const open = $('close').style.display !== 'block';
-    $('close').style.display = open ? 'block' : 'none';
-    if (open) { $('c-venue').textContent = val('venue') || '会場を選んでください'; if (!$('c-date').value) $('c-date').value = new Date().toLocaleDateString('sv-SE'); calc(); }
-  };
-  CLOSE.forEach(k => $('c-' + k).oninput = calc);
-  $('c-send').onclick = sendClose;
   window.addEventListener('online', flush);
   setInterval(flush, 20000);
 </script>

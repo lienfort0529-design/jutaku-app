@@ -20,6 +20,7 @@
   .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .tabs button { flex: 1; padding: 10px 6px; font-size: 15px; font-weight: 600; border-radius: 10px; border: 1px solid #ccc; background: #fff; }
   .tabs .reg { flex: 1.3; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #2a56a8; color: #fff; font-weight: 700; font-size: 15px; text-decoration: none; }
+  .card.close { cursor: default; margin-bottom: 12px; } .card.close label { display: block; font-size: 12px; margin: 8px 0 3px; }
   .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
   .card { background: #fff; border-radius: 14px; padding: 12px 14px; cursor: pointer; }
@@ -232,6 +233,22 @@
   <div class="tabs"><a class="reg" href="ap.html">＋ お客様登録</a><button data-v="nippo" class="on">日報</button><button data-v="cust">お客様</button></div>
   <div id="msg"></div>
   <div id="nippoBox">
+    <div class="card close" id="closeCard">
+      <div class="t"><b>今日の締め</b><span>会場ごと・1日1回</span></div>
+      <div class="two"><div><label>催事会場</label><select id="cVenue"></select></div><div><label>日付</label><input id="cDate" type="date"></div></div>
+      <div class="two">
+        <div><label>スタッフ数</label><input id="c-staff" type="number" inputmode="numeric" min="0"></div>
+        <div><label>キャッチ配布数</label><input id="c-dist" type="number" inputmode="numeric" min="0"></div>
+        <div><label>キャッチ成功数</label><input id="c-catch" type="number" inputmode="numeric" min="0"></div>
+        <div><label>抽選参加数</label><input id="c-lottery" type="number" inputmode="numeric" min="0"></div>
+        <div><label>着座_両面</label><input id="c-seatW" type="number" inputmode="numeric" min="0"></div>
+        <div><label>着座_片面</label><input id="c-seatS" type="number" inputmode="numeric" min="0"></div>
+        <div><label>戸建数</label><input id="c-house" type="number" inputmode="numeric" min="0"></div>
+      </div>
+      <div class="note" id="cCalc"></div>
+      <button class="ok" id="cSend" style="width:100%;padding:13px;font-size:16px;font-weight:600;border-radius:12px;border:0">締めを送る</button>
+      <div class="note">アポ獲得数（両面・片面）は、登録したお客様から自動で数えます。同じ日・会場で送り直すと上書きします。</div>
+    </div>
     <div class="row"><select id="nMonth" aria-label="月"></select><select id="nVenue" aria-label="会場"></select></div>
     <div class="note" id="nCount"></div>
     <div class="grid" id="nList"></div>
@@ -287,6 +304,7 @@
 
   // ===== 日報 =====
   function renderNippo() {
+    closeInit();
     const months = [...new Set(D.nippo.map(r => r.date.slice(0, 7)))].sort().reverse();
     $('nMonth').innerHTML = '<option value="">すべての月</option>' + months.map(m => '<option value="' + m + '">' + Number(m.slice(0, 4)) + '年' + Number(m.slice(5)) + '月</option>').join('');
     $('nMonth').value = nMonthSel !== null ? nMonthSel : (months.includes(D.today.slice(0, 7)) ? D.today.slice(0, 7) : months[0] || '');
@@ -311,6 +329,37 @@
     $('eForm').innerHTML = '<div class="two">' + D.nedit.map(c => '<div><label>' + esc(D.nhead[c - 2] || c) + '</label><input type="number" inputmode="numeric" min="0" data-c="' + c + '" value="' + esc(String(r.d[c - 2] || '').replace(/,/g, '')) + '"></div>').join('') + '</div>';
     $('edit').classList.add('open');
   }
+
+  // ===== 今日の締め（2026-11-23 お客様登録から移した） =====
+  const CLOSE = ['staff', 'dist', 'catch', 'lottery', 'seatW', 'seatS', 'house'];
+  const cnum = k => $('c-' + k).value === '' ? '' : Number($('c-' + k).value);
+  function closeInit() {
+    const cur = $('cVenue').value || store('ap-venue') || '';
+    $('cVenue').innerHTML = '<option value="">選んでください</option>' + D.venues.map(v => '<option>' + esc(v) + '</option>').join('');
+    $('cVenue').value = D.venues.includes(cur) ? cur : '';
+    if (!$('cDate').value) $('cDate').value = D.today;
+    closeCalc();
+  }
+  function closeCalc() {
+    const d = cnum('dist'), c = cnum('catch'), w = cnum('seatW'), s = cnum('seatS');
+    $('cCalc').textContent = 'キャッチ失注数：' + (d === '' ? '-' : d - (c || 0)) + '　着座数：' + (w === '' && s === '' ? '-' : (w || 0) + (s || 0));
+  }
+  function closeSend() {
+    const it = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), venue: $('cVenue').value, date: $('cDate').value };
+    CLOSE.forEach(k => it[k] = cnum(k));
+    if (!it.venue || !it.date) { alert('催事会場と日付を入れてください'); return; }
+    if (CLOSE.some(k => it[k] === '' || it[k] < 0)) { alert('数字を全部入れてください（0 も入れられます）'); return; }
+    if (it.catch > it.dist) { alert('キャッチ成功数が配布数より多くなっています'); return; }
+    if (!confirm(it.date + ' ' + it.venue + '\n配布 ' + it.dist + '・成功 ' + it.catch + '・着座 ' + (it.seatW + it.seatS) + '\nこの内容で送りますか？')) return;
+    store('ap-venue', it.venue);
+    setBusy(true, '送信中…');
+    google.script.run.withSuccessHandler(r => {
+      if (r.errors && r.errors.length) { setBusy(false); alert(r.errors.join('\n')); return; }
+      CLOSE.forEach(k => $('c-' + k).value = '');
+      google.script.run.withSuccessHandler(x => { got(x); $('msg').textContent = '締めを送りました：' + it.date + ' ' + it.venue; }).withFailureHandler(fail0).saijiData();
+    }).withFailureHandler(e => { setBusy(false); alert(e.message); }).addNippo([it]);
+  }
+  const fail0 = e => { setBusy(false); $('msg').textContent = 'エラー: ' + e.message; };
 
   // ===== お客様 =====
   const CI = { no: 0, date: 1, venue: 2, customer: 3, age: 4, tel: 5, area: 6, cc: 7, qp: 8, ap: 9, cl: 10, status: 11, next: 12, survey: 13, price: 18 };
@@ -377,6 +426,8 @@
   $('cq').oninput = renderCust;
   $('eCancel').onclick = () => $('edit').classList.remove('open');
   $('eSave').onclick = save;
+  CLOSE.forEach(k => $('c-' + k).oninput = closeCalc);
+  $('cSend').onclick = closeSend;
   view = store('saijiView') === 'cust' ? 'cust' : 'nippo';
   load();
 </script>
