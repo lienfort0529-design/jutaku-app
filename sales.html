@@ -52,6 +52,7 @@
   .chk { display: flex; align-items: center; gap: 10px; font-size: 16px; padding: 6px 0; }
   .chk input { width: 24px; height: 24px; }
   .dl { display: flex; gap: 8px; } .dl input { flex: 1; } .dl button { padding: 0 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
+  .addsale { width: 100%; padding: 13px; font-size: 16px; font-weight: 700; border-radius: 12px; border: 0; margin-bottom: 4px; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
 <script>
@@ -239,6 +240,7 @@
   <div class="fl"><select id="sMonth" aria-label="月"></select><select id="sFilter" aria-label="絞り込み">
     <option value="">すべて</option><option value="wait">クーリン待ち</option><option value="nokouji">工事日なし（契約）</option><option value="out">キャンセルなど</option></select>
     <input id="sq" placeholder="お客様名・担当で探す"></div>
+  <button class="ok addsale" id="addSale">＋ 成約を入れる</button>
   <div id="msg"></div>
   <div class="summary" id="sum"></div>
   <div class="note" id="count"></div>
@@ -250,6 +252,21 @@
     <label>クーリン通過</label><label class="chk"><input type="checkbox" id="ePass"><span id="ePassNote"></span></label>
     <label>工事日</label><div class="dl"><input type="date" id="eKouji"><button id="eKoujiClear" type="button">消す</button></div>
     <div class="acts"><button class="cancel" id="eCancel">やめる</button><button class="ok" id="eSave">保存</button></div>
+  </div></div>
+  <div class="sheet" id="new"><div class="in">
+    <h3>成約を入れる</h3><div class="note">契約日の月の売上シートに1行入り、商談の数にも入ります（今までのクローザー入力の成約と同じ）</div>
+    <label>クローザー</label><select id="nCloser"></select>
+    <label>契約日</label><input type="date" id="nDate">
+    <label>お客様名</label><input id="nCustomer" placeholder="例：山田太郎様">
+    <label>契約場所</label><select id="nPlace"></select>
+    <div id="nSaijiBox" class="hide"><label>催事のお客様（選ぶと名前とアポインターが入ります）</label><select id="nSaiji"></select></div>
+    <label>チーム</label><select id="nTeam"></select>
+    <label>アポインター</label><select id="nAp"></select><input id="nApOther" class="hide" placeholder="アポインターの名前" style="margin-top:6px">
+    <label>販売価格（円）</label><input id="nPrice" type="number" inputmode="numeric" placeholder="例：2750000">
+    <label>決済方法</label><select id="nPay"></select>
+    <label>販売商品（複数選べます）</label><div class="opts" id="nProd"></div>
+    <label>備考</label><input id="nNote">
+    <div class="acts"><button class="cancel" id="nCancel">やめる</button><button class="ok" id="nSend">成約を記録</button></div>
   </div></div>
   <div id="overlay"><div class="spinner"></div>読み込み中…</div>
 
@@ -328,6 +345,66 @@
       .withFailureHandler(e => { setBusy(false); alert(e.message); })
       .saleEdit(D.m, x.row, x.customer, editing.status, $('ePass').checked, $('eKouji').value);
   }
+
+  // ===== 成約を入れる（2026-11-23。クローザー入力の成約と同じ addEntries） =====
+  const OTHER = 'その他（手入力）', SAIJI_DONE = ['成約', '工事完了', '連系完了', '失注'];
+  let CFG = null;
+  function opt(el, list, first) { el.innerHTML = (first != null ? '<option value="">' + first + '</option>' : '') + list.map(v => '<option>' + esc(v) + '</option>').join(''); }
+  function openNew() {
+    const go = c => {
+      CFG = c; setBusy(false);
+      opt($('nCloser'), c.closers.filter(Boolean), '選んでください'); $('nCloser').value = store('salesCloser') || '';
+      opt($('nPlace'), c.options.places); opt($('nTeam'), c.options.teams); opt($('nPay'), c.options.payments);
+      opt($('nAp'), c.appointers.filter(Boolean).concat([OTHER]), '選んでください');
+      $('nProd').innerHTML = c.options.products.map(v => '<button type="button">' + esc(v) + '</button>').join('');
+      $('nProd').querySelectorAll('button').forEach(b => b.onclick = () => b.classList.toggle('on'));
+      $('nDate').value = D.today; ['nCustomer', 'nPrice', 'nNote', 'nApOther'].forEach(id => $(id).value = '');
+      $('nApOther').classList.add('hide'); showSaiji();
+      $('new').classList.add('open');
+    };
+    if (CFG) return go(CFG);
+    setBusy(true, '読み込み中…');
+    google.script.run.withSuccessHandler(go).withFailureHandler(e => { setBusy(false); alert(e.message); }).getConfig();
+  }
+  function showSaiji() {
+    const on = $('nPlace').value === '催事';
+    $('nSaijiBox').classList.toggle('hide', !on);
+    if (on) $('nSaiji').innerHTML = '<option value="">選ばない（一覧にいない）</option>' + (CFG.saiji || []).filter(c => !SAIJI_DONE.includes(c.status))
+      .map(c => '<option value="' + esc(c.no) + '">' + esc(c.customer + '（' + c.venue + '・' + (c.status || '') + '）') + '</option>').join('');
+  }
+  function pickSaiji() {
+    const c = (CFG.saiji || []).find(x => x.no === $('nSaiji').value);
+    if (!c) return;
+    $('nCustomer').value = c.customer;
+    if (CFG.appointers.includes(c.ap)) { $('nAp').value = c.ap; $('nApOther').classList.add('hide'); }
+    else if (c.ap) { $('nAp').value = OTHER; $('nApOther').value = c.ap; $('nApOther').classList.remove('hide'); }
+  }
+  function sendNew() {
+    const closer = $('nCloser').value, ap = $('nAp').value === OTHER ? $('nApOther').value.trim() : $('nAp').value;
+    const sale = { date: $('nDate').value, customer: $('nCustomer').value.trim(), place: $('nPlace').value, team: $('nTeam').value,
+      saijiNo: $('nPlace').value === '催事' ? $('nSaiji').value : '', appointer: ap, price: $('nPrice').value, payment: $('nPay').value,
+      product: [...$('nProd').querySelectorAll('button.on')].map(b => b.textContent).join(', '), note: $('nNote').value.trim() };
+    if (!closer) { alert('クローザーを選んでください'); return; }
+    if (!sale.date || !sale.customer || !sale.appointer || !(Number(sale.price) > 0) || !sale.product) { alert('契約日・お客様名・アポインター・販売価格・販売商品を入れてください'); return; }
+    if (Number(sale.price) >= 10000000 && !confirm('販売価格が ' + Number(sale.price).toLocaleString() + '円 とかなり大きいですが、合っていますか？')) return;
+    if (!confirm(sale.customer + '\n' + Number(sale.price).toLocaleString() + '円（CL ' + closer + '）\nこの内容で記録しますか？')) return;
+    store('salesCloser', closer);
+    const it = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), closer: closer, result: '成約', ts: Date.now(), sale: sale, yotei: '' };
+    const m = Number(sale.date.slice(5, 7));
+    setBusy(true, '記録中…');
+    google.script.run.withSuccessHandler(r => {
+      if (!r.done.includes(it.id)) { setBusy(false); alert((r.errors || []).join('\n') || '記録できませんでした'); return; }
+      $('new').classList.remove('open');
+      if (sale.saijiNo) { const c = CFG.saiji.find(x => x.no === sale.saijiNo); if (c) c.status = '成約'; }
+      google.script.run.withSuccessHandler(x => { got(x); $('msg').textContent = '成約を記録しました：' + sale.customer + ((r.errors || []).length ? '（' + r.errors.join('・') + '）' : ''); }).withFailureHandler(fail).saleList(false, m);
+    }).withFailureHandler(e => { setBusy(false); alert(e.message); }).addEntries([it]);
+  }
+  $('addSale').onclick = openNew;
+  $('nPlace').onchange = showSaiji;
+  $('nSaiji').onchange = pickSaiji;
+  $('nAp').onchange = () => $('nApOther').classList.toggle('hide', $('nAp').value !== OTHER);
+  $('nCancel').onclick = () => $('new').classList.remove('open');
+  $('nSend').onclick = sendNew;
 
   $('sMonth').onchange = () => { $('list').innerHTML = ''; load(Number($('sMonth').value)); };
   $('sFilter').onchange = render;
