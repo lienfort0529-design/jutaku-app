@@ -103,7 +103,8 @@
   .pc { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .pc span { flex: 1; font-size: 14px; font-weight: 700; padding: 6px 10px; border-radius: 8px; color: #fff; }
   .pc button { padding: 7px 12px; font-size: 14px; font-weight: 600; border-radius: 8px; border: 1px solid #27ae60; background: #fff; color: #27ae60; }
-  .card.pre { border-left: 6px solid #e67e22; } .card.done { border-left: 6px solid #27ae60; }
+  .card.pre { border-left: 6px solid #e67e22; } .card.done { border-left: 6px solid #27ae60; } .card.ng { border-left: 6px solid #c0392b; }
+  .pc .pcng { border-color: rgba(192,57,43,.5) !important; color: #e06b5f !important; }
   .mon .e i { font-style: normal; }
   .subh { margin: 16px 0 6px; font-weight: 700; color: #8e44ad; }
   /* 予定の写真（備考の下）。小さく並べ、押すと大きく */
@@ -314,7 +315,7 @@
   <div id="monthView" class="hide">
     <div class="nav"><button id="prevM">◀</button><div class="mid" id="monthLabel"></div><button id="nextM">▶</button></div>
     <table class="mon"><tbody id="monthBody"></tbody></table>
-    <div class="legend"><span style="color:#e67e22">● 前確前</span><span style="color:#27ae60">● 前確完了</span></div>
+    <div class="legend"><span style="color:#e67e22">● 前確前</span><span style="color:#27ae60">● 前確完了</span><span style="color:#c0392b">● 前確NG</span></div>
     <div class="note" style="text-align:center">日を押すと、その日の予定一覧</div>
   </div>
 
@@ -324,7 +325,7 @@
     <table><thead id="gridHead"></thead><tbody id="gridBody"></tbody></table>
     <div class="legend" id="legShodan"><span><i style="background:#27ae60"></i>空きあり</span><span><i style="background:#f1c40f"></i>残り1</span>
       <span><i style="background:#b8bcc2"></i>満枠</span><span><i style="background:#c0392b"></i>溢れあり</span><span>大＝大阪・催事　東＝東京</span></div>
-    <div class="legend"><span><i style="background:#e67e22"></i>前確前</span><span><i style="background:#27ae60"></i>前確完了</span></div>
+    <div class="legend"><span><i style="background:#e67e22"></i>前確前</span><span><i style="background:#27ae60"></i>前確完了</span><span><i style="background:#c0392b"></i>前確NG</span></div>
     <div class="legend"><span><i style="background:#e6a700"></i>★アポ有効＝年齢79歳以下・両面接触○・電気代5000円以上・蓄電池6年以上かなし（それ以外は無効）</span></div>
     <div class="legend hide" id="legShoho"><span>1日9件まで・30分刻み</span><span>× は商談が満枠の前後3時間</span></div>
     <div class="note" style="text-align:center">マスを押すと予定の確認・追加、日付を押すと休み・時間帯の変更</div>
@@ -466,8 +467,8 @@
     return out.map(r => r[0] === r[1] ? r[0] : r[0] + '〜' + r[1]).join('、');
   }
   // 前確：完了＝緑、まだ＝オレンジ
-  const PC = { pre: '#e67e22', done: '#27ae60' };
-  const pcState = a => a.precheckDone ? 'done' : 'pre';
+  const PC = { pre: '#e67e22', done: '#27ae60', ng: '#c0392b' };
+  const pcState = a => /^NG/.test(a.precheckDone || '') ? 'ng' : a.precheckDone ? 'done' : 'pre';
   function pcText(v) { // 「2026-11-16 15:00」→「11/16(月) 15:00」（手入力の古い値はそのまま）
     const m = /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)$/.exec(v || '');
     return m ? label(m[1]) + ' ' + m[2] : v || '';
@@ -621,13 +622,15 @@
     d.querySelector('.memo').textContent = a.memo || '';
     const pc = document.createElement('div'), st2 = pcState(a), when = pcText(a.detail && a.detail.precheck);
     pc.className = 'pc';
-    pc.innerHTML = '<span></span><button></button>';
+    pc.innerHTML = '<span></span>' + (st2 === 'pre' ? '<button class="pcok">前確完了</button><button class="pcng">前確NG</button>' : '<button class="pcback">戻す</button>');
     pc.querySelector('span').style.background = PC[st2];
-    pc.querySelector('span').textContent = st2 === 'done' ? '前確完了' : '前確前' + (when ? '　' + when : '');
-    pc.querySelector('button').textContent = st2 === 'done' ? '戻す' : '前確完了';
-    pc.querySelector('button').onclick = () => {
-      if (st2 === 'done' && !confirm(a.customer + ' の前確完了を戻しますか？')) return;
-      call('yPrecheck', [a.id, st2 !== 'done'], '保存中…');
+    pc.querySelector('span').textContent = st2 === 'done' ? '前確完了' : st2 === 'ng' ? '前確NG' : '前確前' + (when ? '　' + when : '');
+    if (st2 === 'pre') {
+      pc.querySelector('.pcok').onclick = () => call('yPrecheck', [a.id, true], '保存中…');
+      pc.querySelector('.pcng').onclick = () => { if (confirm(a.customer + ' を前確NGにしますか？')) call('yPrecheck', [a.id, 'ng'], '保存中…'); };
+    } else pc.querySelector('.pcback').onclick = () => {
+      if (!confirm(a.customer + ' の' + (st2 === 'ng' ? '前確NG' : '前確完了') + 'を戻しますか？')) return;
+      call('yPrecheck', [a.id, false], '保存中…');
     };
     d.classList.add(st2);
     d.querySelector('.memo').after(pc);
