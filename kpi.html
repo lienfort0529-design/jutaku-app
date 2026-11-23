@@ -254,7 +254,7 @@
     var base = a0 ? a0.href.split('?')[0] : '';
     var MAP = 'map.html';
     var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['closer', 'クローザー入力', 'CLOSER'], ['tataki', '叩きカウンター', 'COUNTER'], ['ap', '催事のお客様登録', 'EVENT'],
-                 ['saiji', '催事', 'REPORT'],
+                 ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
                  ['kpi', 'KPI・ランキング', 'KPI'], ['input', '入力', 'INPUT'], ['member', 'メンバー', 'MEMBER'], ['map', '営業マップ', 'MAP']];
     var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
     var title = (document.querySelector('.lf-t b') || {}).textContent || '';
