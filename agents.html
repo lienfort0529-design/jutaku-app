@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>代理店</title>
+<script src="api.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 12px 14px 40px; font-family: -apple-system, sans-serif; background: #f4f5f7; color: #222; }
+  input { font-size: 16px; padding: 9px 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; width: 100%; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+  .card .t { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card .t b { font-size: 17px; }
+  .chip { font-size: 12px; padding: 2px 9px; border-radius: 10px; font-weight: 600; white-space: nowrap; background: #e6f4ea; color: #1e7e34; }
+  .chip.off { background: #fdecea; color: #c0392b; }
+  .note { font-size: 13px; margin: 6px 0; line-height: 1.6; }
+  label { display: block; font-size: 13px; margin: 12px 0 4px; }
+  .people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .people span { display: inline-flex; align-items: center; gap: 4px; padding: 5px 6px 5px 10px; border-radius: 16px; background: #eef2f8; font-size: 14px; }
+  .people span button { border: 0; background: none; font-size: 16px; line-height: 1; padding: 0 4px; color: #888; }
+  .line { display: flex; gap: 8px; margin-top: 8px; } .line input { flex: 1; }
+  .line button, .btn { padding: 0 14px; min-height: 42px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .btn.main { background: #2a56a8; border-color: #2a56a8; color: #fff; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .url { word-break: break-all; font-size: 14px; }
+  #msg { text-align: center; font-size: 14px; min-height: 20px; margin: 6px 0; }
+  .hide { display: none !important; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<script>
+  // 明るい・暗い：端末の設定に合わせる。右上のボタンで切り替えると、その端末に覚える（lfTheme）
+  (function () { try { var t = localStorage.getItem('lfTheme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
+<style>
+  /* 住宅設備アプリ共通のデザイン（2026-11-18 作り直し：明るい・暗い、パソコンは左にメニュー）。
+     色は Lien Fort（lienfort.co.jp）の紺と青。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --btn: #2a56a8; --sub: #5b6577; --line: #e2e7ef; --bg: #f3f5f9; --pale: #eef2f9;
+          --surface: #fff; --surface2: #f6f8fb; --track: #e9edf3; --bar: #18202e; --chip: #18202e; --chipInk: #fff;
+          --veil: rgba(243,245,249,.72); --shadow: 0 1px 2px rgba(24,32,46,.06), 0 8px 24px rgba(24,32,46,.05);
+          --pend: #fff3cd; --pendInk: #7a5b00; --goodBg: #eafaf0; --badBg: #fdecea;
+          --en: Oswald, "Arial Narrow", sans-serif; --num: Inter, "Hiragino Sans", sans-serif; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+
+  /* 上の帯 */
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 12px 14px;
+            background: var(--bar); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px !important; letter-spacing: .3em; color: #8fa6cf !important; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; color: #fff; }
+  .lf-theme { flex: none; margin-left: auto; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+              border: 1px solid rgba(255,255,255,.18); border-radius: 10px; background: rgba(255,255,255,.06); color: #fff; padding: 0; cursor: pointer; }
+  .lf-theme svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .lf-bar .who ~ .lf-theme, .lf-bar .lf-theme ~ .who { margin-left: 8px; }
+
+  /* 入力欄 */
+  select, input, textarea { background: var(--surface) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.35); border-color: var(--blue) !important; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--btn); }
+  h2, h3, .card h3 { letter-spacing: .03em; color: var(--ink) !important; }
+  label, .note, .sub, small, #msg, .legend, .count, .calc, .coord, .state, .card dt, .gcard p { color: var(--sub) !important; }
+  td.s small, .shd td.c small, button.r small, .tiles a.app.main small { color: rgba(255,255,255,.85) !important; } td.s.last small { color: #5c4b00 !important; }
+
+  /* 面（カード・表・パネル） */
+  .card, .summary, .summary > div, .tbl, .gcard, .sheet .in, #close, .visit, .panel, .find, .fab, .showBtn,
+  td.d, .mon td, .shd td:not(.c), .checks label, #sale .checks label, .sheet .kinds label, .names button, #pickList button {
+    background: var(--surface) !important; border-color: var(--line) !important; color: var(--ink); }
+  .card, .tbl, .summary > div, .summary, .gcard, .visit { border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--shadow) !important; }
+  .card summary, .req { color: var(--blue) !important; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b, .big, .rk .v, .v, .gy td b { font-family: var(--num) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .summary b { font-weight: 800; font-size: 28px !important; color: var(--ink); }
+  .big { font-weight: 800 !important; color: var(--ink) !important; }
+  .bar, .left .bar { background: var(--track) !important; }
+  .bar i, .left .bar i { background: var(--btn) !important; } .bar i.ok { background: #27ae60 !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--btn) !important; }
+  td.s.block { background: var(--pale) !important; }
+  .legend span:first-child i { background: var(--btn) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+  .st { background: var(--pale) !important; color: var(--ink) !important; }
+  .st.shoho { background: #8e44ad !important; color: #fff !important; }
+  .st.x { background: var(--badBg) !important; color: #e06b5f !important; }
+  #pending { background: var(--pend) !important; color: var(--pendInk) !important; }
+  .checks label, #sale .checks label, .sheet .kinds label { color: var(--ink) !important; }
+
+  /* 表（KPI） */
+  table { color: var(--ink); }
+  th { background: var(--surface2) !important; color: var(--sub) !important; border-color: var(--line) !important; }
+  td { border-color: var(--line) !important; }
+  .tbl td:first-child { background: var(--surface) !important; }
+  .tbl th:first-child, tr.total td { background: var(--surface2) !important; }
+  td.good { background: var(--goodBg) !important; } td.bad { background: var(--badBg) !important; }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button { font-family: inherit; }
+  button.r { border-radius: 14px !important; box-shadow: 0 2px 0 rgba(0,0,0,.14); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel, .seg button, .gyreset, .admin button, .opts button, .two button, .links button,
+  .sides button, .close-btn, .choice button, .kinds button, .pc button, #goalEdit, .del, .add {
+    background: var(--surface) !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map, .links button, .two button, #goalEdit, .close-btn { color: var(--blue) !important; }
+  .del { color: #e06b5f !important; border-color: rgba(224,107,95,.5) !important; }
+  .add { border: 2px dashed var(--blue) !important; color: var(--blue) !important; }
+  .ok, .acts .ok, .gcard .go, #close .ok { background: var(--btn) !important; color: #fff !important; }
+  .tabs { gap: 6px !important; }
+  .tabs button, .seg button { border-radius: 999px !important; border: 1px solid var(--line) !important; background: var(--surface) !important; color: var(--sub) !important; font-weight: 600; }
+  .tabs button.on, .seg button.on, .opts button.on, .choice button.on, .sides button.on, .showBtn.on {
+    background: var(--chip) !important; border-color: var(--chip) !important; color: var(--chipInk) !important; }
+  .kinds button.on { background: #8e44ad !important; border-color: #8e44ad !important; color: #fff !important; }
+  #clockBtn { background: var(--pale) !important; color: var(--ink) !important; }
+  #clockBtn.on { background: var(--badBg) !important; color: #e06b5f !important; }
+  #placeBtn { background: var(--surface) !important; }
+  #findList button { color: var(--ink) !important; border-top-color: var(--line) !important; }
+  .fab, .fab * { color: var(--blue) !important; } #layerBtn, #findBtn, .showBtn { color: var(--ink) !important; }
+  #areaChip { background: var(--surface) !important; color: var(--ink) !important; } #areaChip button { background: var(--pale) !important; color: var(--ink) !important; }
+
+  /* ランキング：1〜3位は丸い数字（金・銀・銅） */
+  .rk .n { font-family: var(--num); }
+  .rk.m1 .n, .rk.m2 .n, .rk.m3 .n { width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                    font-size: 13px; font-weight: 800; }
+  .rk.m1 .n { background: #e9c46a; color: #18202e !important; }
+  .rk.m2 .n { background: #cfd5de; color: #18202e !important; }
+  .rk.m3 .n { background: #dcae86; color: #18202e !important; }
+  /* 目立たせるカード（チーム売上など） */
+  .card.feature { background: #18202e !important; border-color: #18202e !important; color: #fff; }
+  :root[data-theme="dark"] .card.feature { background: #1d2a44 !important; border-color: #2c3d5f !important; }
+  .card.feature h3, .card.feature .big { color: #fff !important; }
+  .card.feature .sub, .card.feature h3 small { color: #b8c4d8 !important; }
+  .card.feature .bar { background: rgba(255,255,255,.14) !important; } .card.feature .bar i { background: #5b8def !important; }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  #overlay { background: var(--veil) !important; color: var(--ink); }
+  #goalBox { background: rgba(0,0,0,.55) !important; }
+  .spinner { border-color: var(--track) !important; border-top-color: var(--btn) !important; }
+
+  /* パソコン：左にメニュー（#lfSide は下のスクリプトで作る） */
+  #lfSide { display: none; }
+  @media (min-width: 1024px) {
+    body.lf-side { padding-left: 264px !important; padding-right: 32px !important; }
+    body.lf-side .lf-bar { margin: 0 -32px 20px; padding-left: 32px; padding-right: 32px; }
+    body.lf-side .lf-back { display: none; }
+    body.lf-side > .hero { margin-left: -32px !important; margin-right: -32px !important; padding-left: 40px !important; }
+    #lfSide { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: 232px; z-index: 40; flex-direction: column; gap: 22px;
+              padding: 26px 14px; box-sizing: border-box; overflow-y: auto; background: #111824; color: #eef2f8; }
+    #lfSide .lg { display: block; padding: 0 10px; text-decoration: none; color: #eef2f8; }
+    #lfSide .lg small { display: block; font-family: var(--en); font-size: 11px; letter-spacing: .35em; color: #7fa2e8; }
+    #lfSide .lg b { font-family: "Shippori Mincho B1", serif; font-size: 22px; letter-spacing: .12em; }
+    #lfSide nav { display: flex; flex-direction: column; gap: 2px; }
+    #lfSide nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #b8c4d8; text-decoration: none; font-size: 14px; }
+    #lfSide nav a:hover { background: #1a2333; color: #fff; }
+    #lfSide nav a.on { background: #2a56a8; color: #fff; font-weight: 700; }
+    #lfSide nav a span { font-family: var(--en); font-size: 9px; letter-spacing: .2em; color: #6f82a6; width: 58px; flex: none; }
+    #lfSide nav a.on span { color: #c9d8f7; }
+  }
+</style>
+<script>
+  // 右上の明るい・暗いボタンと、パソコンの左メニュー
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.documentElement;
+    var dark = function () { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+    var SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+    var MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    var host = document.querySelector('.lf-bar') || document.querySelector('.hero');
+    if (host) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'lf-theme';
+      var paint = function () { b.innerHTML = dark() ? SUN : MOON; b.setAttribute('aria-label', dark() ? '明るい表示にする' : '暗い表示にする'); };
+      b.onclick = function () { var t = dark() ? 'light' : 'dark'; root.setAttribute('data-theme', t); try { localStorage.setItem('lfTheme', t); } catch (e) {} paint(); };
+      paint();
+      if (host.classList.contains('hero')) { b.style.position = 'absolute'; b.style.top = '18px'; b.style.right = '16px'; b.style.zIndex = '2'; host.appendChild(b); }
+      else host.insertBefore(b, host.querySelector('.who'));
+    }
+    // 地図の画面は全面を地図に使うので左メニューを出さない
+    if (document.getElementById('map')) return;
+    var gh = /github\.io$/.test(location.hostname);
+    var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
+    var base = a0 ? a0.href.split('?')[0] : '';
+    var MAP = 'map.html';
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['tataki', '叩きカウンター', 'COUNTER'],
+                 ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['settings', '設定', 'SETTINGS'], ['map', '営業マップ', 'MAP']];
+    var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
+    var title = (document.querySelector('.lf-t b') || {}).textContent || '';
+    var file = location.pathname.split('/').pop();
+    var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var side = document.createElement('aside');
+    side.id = 'lfSide';
+    side.innerHTML = '<a class="lg" target="_top" href="' + esc(href('menu')) + '"><small>LIEN FORT</small><b>住宅設備</b></a><nav>' + PAGES.map(function (p) {
+      var on = gh ? file === p[0] + '.html' : title.replace('催事 お客様登録', '催事のお客様登録') === p[1];
+      return '<a target="_top" class="' + (on ? 'on' : '') + '" href="' + esc(href(p[0])) + '"><span>' + p[2] + '</span>' + p[1] + '</a>';
+    }).join('') + '</nav>';
+    document.body.appendChild(side);
+    document.body.classList.add('lf-side');
+  });
+</script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>代理店</b></div></header>
+  <div class="wrap">
+    <div class="card">
+      <div class="note">代理店は、下のアドレスを開いて、その会社の合言葉を入れると<b>営業マップだけ</b>使えます。売上や商談予定などは見られません。</div>
+      <div class="line"><div class="url" id="url">https://lienfort0529-design.github.io/jutaku-app/dairiten.html</div><button id="copy">コピー</button></div>
+    </div>
+
+    <div class="card hide" id="login">
+      <div class="note">代理店の設定は管理者だけが使えます。</div>
+      <div class="line"><input type="password" id="adPass" placeholder="管理者の合言葉"><button class="btn main" id="adGo">ひらく</button></div>
+    </div>
+
+    <div id="list"></div>
+
+    <div class="card hide" id="addBox">
+      <b>代理店を足す</b>
+      <label>会社名</label><input id="nCo" placeholder="例：〇〇設備">
+      <label>合言葉（6文字以上・社内の合言葉とは別のもの）</label><input id="nPass" autocomplete="off">
+      <div class="row"><button class="btn main" id="nAdd">足す</button></div>
+    </div>
+    <div id="msg"></div>
+  </div>
+<script>
+  const $ = id => document.getElementById(id);
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const run = (fn, ...a) => new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(ng)[fn](...a));
+  const msg = t => { $('msg').textContent = t || ''; };
+  let list = [];
+
+  function draw() {
+    $('list').innerHTML = list.map((a, i) => `<div class="card" data-i="${i}">
+      <div class="t"><b>${esc(a.company)}</b><span class="chip ${a.off ? 'off' : ''}">${a.off ? '止めている' : '使える'}</span></div>
+      <label>合言葉</label><div class="line"><input class="pass" value="${esc(a.pass)}" autocomplete="off"><button class="savePass">変える</button></div>
+      <label>使う人（地図には「${esc(a.company)} 名前」と出ます）</label>
+      <div class="people">${a.names.map((n, j) => `<span>${esc(n)}<button data-j="${j}" aria-label="${esc(n)}を消す">×</button></span>`).join('') || '<span style="background:none;padding-left:0">まだいません</span>'}</div>
+      <div class="line"><input class="newName" placeholder="名前を足す（例：田中）"><button class="addName">足す</button></div>
+      <div class="row"><button class="btn toggle">${a.off ? 'また使えるようにする' : '使えないようにする'}</button></div>
+    </div>`).join('');
+    $('list').querySelectorAll('.card').forEach(c => {
+      const a = list[c.dataset.i];
+      c.querySelector('.savePass').onclick = () => save(a, { pass: c.querySelector('.pass').value });
+      c.querySelector('.addName').onclick = () => { const n = c.querySelector('.newName').value.trim(); if (n) save(a, { names: a.names.concat(n) }); };
+      c.querySelector('.newName').onkeydown = e => { if (e.key === 'Enter') c.querySelector('.addName').click(); };
+      c.querySelectorAll('.people button').forEach(b => b.onclick = () => {
+        if (confirm(a.names[b.dataset.j] + ' さんを消しますか？（立てたピンや記録は残ります）')) save(a, { names: a.names.filter((_, j) => j != b.dataset.j) });
+      });
+      c.querySelector('.toggle').onclick = () => {
+        if (a.off || confirm(a.company + ' を使えないようにしますか？（すぐに地図が開けなくなります）')) save(a, { off: !a.off });
+      };
+    });
+  }
+
+  function save(a, ch) {
+    msg('保存しています…');
+    run('agentSave', store('jAdmin') || '', Object.assign({}, a, ch))
+      .then(r => { list = r; draw(); msg('保存しました'); }, e => msg('エラー：' + e.message));
+  }
+
+  function load() {
+    msg('読み込み中…');
+    run('agentList', store('jAdmin') || '').then(r => {
+      list = r; $('login').classList.add('hide'); $('addBox').classList.remove('hide'); draw();
+      msg(list.length ? '' : 'まだ代理店がありません');
+    }, e => {
+      $('login').classList.remove('hide'); $('addBox').classList.add('hide'); $('list').innerHTML = '';
+      msg(/管理者/.test(e.message) ? '' : 'エラー：' + e.message);
+    });
+  }
+
+  $('adGo').onclick = () => { const v = $('adPass').value.trim(); if (v) { store('jAdmin', v); load(); } };
+  $('adPass').onkeydown = e => { if (e.key === 'Enter') $('adGo').click(); };
+  $('nAdd').onclick = () => {
+    const company = $('nCo').value.trim(), pass = $('nPass').value.trim();
+    if (!company) return msg('会社名を入れてください');
+    msg('保存しています…');
+    run('agentSave', store('jAdmin') || '', { company, pass, names: [], off: false, isNew: true })
+      .then(r => { list = r; $('nCo').value = $('nPass').value = ''; draw(); msg('足しました。下の「使う人」に名前を足してください'); }, e => msg('エラー：' + e.message));
+  };
+  $('copy').onclick = () => { navigator.clipboard.writeText($('url').textContent).then(() => msg('コピーしました'), () => msg('長押しでコピーしてください')); };
+  load();
+</script>
+</body>
+</html>

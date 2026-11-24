@@ -329,8 +329,8 @@
     <div class="sub">このスマホに覚えます。ピンと訪問の記録、現在地にこの名前が出ます。</div>
     <label>名前</label>
     <div class="names" id="names"></div>
-    <label>一覧にないとき</label>
-    <input id="nameIn" placeholder="名前を入れる">
+    <label class="free">一覧にないとき</label>
+    <input class="free" id="nameIn" placeholder="名前を入れる">
     <div class="actions"><button class="cancel" id="whoCancel">戻る</button><button class="ok" id="whoOk">決める</button></div>
   </div>
 
@@ -411,7 +411,9 @@
   const tagBtn = s => `<button style="background:${COLORS[s] || '#9ca3af'}" class="${LIGHT.includes(s) ? 'light' : ''}">${s}</button>`;
   const SEND_MS = 60000;
 
-  let me = store.get('mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
+  const AGENT = '' === 'agent'; // 代理店用（dairiten.html）：地図だけ。メニューへ戻らない・名前は一覧から選ぶ
+  if (AGENT) { document.querySelector('.lf-back').remove(); document.querySelectorAll('#who .free').forEach(e => e.remove()); }
+  let me = store.get(AGENT ? 'mNameAg' : 'mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
   let queue = store.get('mQueue', []), lastSent = 0, wake = null, follow = true;
   let form = null; // { mode: 'pin'|'visit', pin, status, photo }
   let placing = false; // 「地図に置く」：地図を押した場所に未訪問ピンを置く（前日に回るエリアを決めるとき）
@@ -668,10 +670,12 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); tick(); } });
 
   // ===== 名前 =====
-  let names = [], kyushu = [];
+  let names = [], kyushu = [], groups = [];
   function openWho() {
     const btns = list => list.map(n => `<button>${esc(n)}</button>`).join('');
-    $('names').innerHTML = btns(names) + (kyushu.length ? '<div class="sub" style="margin:12px 0 6px">九州支社</div>' + btns(kyushu) : '');
+    const head = t => '<div class="sub" style="margin:12px 0 6px">' + esc(t) + '</div>';
+    $('names').innerHTML = (AGENT && !names.length ? '<div class="sub">名前がまだありません。Lien Fort に名前を足してもらってください</div>' : btns(names)) +
+      (kyushu.length ? head('九州支社') + btns(kyushu) : '') + groups.map(g => head(g.label) + btns(g.names)).join('');
     $('names').querySelectorAll('button').forEach(b => b.onclick = () => setMe(b.textContent));
     $('nameIn').value = '';
     $('who').classList.add('open');
@@ -680,13 +684,13 @@
     n = n.trim();
     if (!n) return;
     if (on && n !== me) return alert('名前を変えるときは、先に退勤してください');
-    me = n; store.set('mName', n);
+    me = n; store.set(AGENT ? 'mNameAg' : 'mName', n);
     $('whoBtn').textContent = n;
     $('who').classList.remove('open');
     tick();
   }
   $('whoBtn').onclick = openWho;
-  $('whoOk').onclick = () => setMe($('nameIn').value);
+  $('whoOk').onclick = () => { if (AGENT) $('who').classList.remove('open'); else setMe($('nameIn').value); };
   $('whoCancel').onclick = () => $('who').classList.remove('open');
 
   // ===== ピンを立てる・訪問を記録 =====
@@ -1017,7 +1021,8 @@
   layout();
   $('whoBtn').textContent = me || '名前';
   run('mConfig').then(c => {
-    names = c.names; kyushu = c.kyushu || []; statuses = c.statuses; drawTags(); drawPins();
+    names = c.names; kyushu = c.kyushu || []; groups = c.groups || []; statuses = c.statuses; drawTags(); drawPins();
+    if (AGENT && me && !names.includes(me)) { me = ''; $('whoBtn').textContent = '名前'; }
     if (pos) loadArea(); else setTimeout(loadArea, 4000); // 位置が分かれば移動したときに読む
     if (!me) openWho();
     tick();

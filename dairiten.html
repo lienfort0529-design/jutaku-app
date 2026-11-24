@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="住宅設備">
+<meta name="theme-color" content="#18202e">
+<link rel="manifest" href="manifest-dairiten.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>営業マップ</title>
+<script src="api.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, sans-serif; }
+  select, input, textarea { width: 100%; font-size: 17px; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; }
+  button { font-family: inherit; }
+  #map { position: fixed; left: 0; right: 0; bottom: 0; top: 56px; z-index: 1; }
+  .who { margin-left: auto; padding: 7px 12px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; background: none; color: #fff; font-size: 14px; }
+  /* 下のパネル */
+  .panel { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 5;
+           background: #fff; border-radius: 14px; padding: 10px; box-shadow: 0 4px 16px rgba(24,32,46,.18); }
+  .state { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5567; margin: 0 2px 8px; }
+  .state i { width: 10px; height: 10px; border-radius: 50%; background: #b8bcc2; flex: none; }
+  .state.on i { background: #27ae60; box-shadow: 0 0 0 4px rgba(39,174,96,.2); }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; padding: 14px 0; font-size: 16px; font-weight: 600; border-radius: 12px; border: 0; }
+  #clockBtn { flex: .7; background: #eef2f9; color: #18202e; }
+  #clockBtn.on { background: #fdecea; color: #c0392b; }
+  #pinBtn { background: #2a56a8; color: #fff; }
+  #placeBtn { background: #fff; color: #2a56a8; border: 2px solid #2a56a8 !important; }
+  #placeBtn.on { background: #e67e22; color: #fff; border-color: #e67e22 !important; }
+  .panel.placing { box-shadow: 0 0 0 3px #e67e22, 0 4px 16px rgba(24,32,46,.18); }
+  .del { width: 100%; margin-top: 4px; padding: 12px; font-size: 16px; border-radius: 10px; border: 1px solid #c0392b; background: #fff; color: #c0392b; }
+  .fab { position: fixed; right: 12px; z-index: 5; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #e3e8f0; background: #fff;
+         box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 20px; color: #2a56a8; }
+  .gLogo { position: fixed; left: 8px; bottom: calc(150px + env(safe-area-inset-bottom)); z-index: 4; display: flex; align-items: center; gap: 6px;
+           pointer-events: none; font-size: 10px; color: #fff; text-shadow: 0 0 2px #000; }
+  .gLogo img { height: 16px; }
+  #layerBtn, #findBtn { font-size: 13px; font-weight: 600; color: #18202e; }
+  /* 検索 */
+  .find { display: none; position: fixed; left: 10px; right: 10px; z-index: 15; background: #fff; border-radius: 14px; padding: 10px;
+          box-shadow: 0 4px 16px rgba(24,32,46,.22); }
+  .find.open { display: block; }
+  .find .bar { display: flex; gap: 6px; }
+  .find input { flex: 1; min-width: 0; }
+  .find .bar button { flex: none; padding: 0 14px; font-size: 15px; font-weight: 600; border-radius: 10px; border: 0; background: #2a56a8; color: #fff; }
+  .find .bar button.x { background: #eef2f9; color: #18202e; }
+  .find .note { font-size: 12px; color: #8a93a3; margin-top: 6px; }
+  #findList { max-height: 45vh; overflow-y: auto; margin-top: 6px; }
+  #findList button { display: block; width: 100%; text-align: left; padding: 10px 6px; border: 0; border-top: 1px solid #e3e8f0; background: none; font-size: 15px; color: #18202e; }
+  #findList button small { display: block; color: #8a93a3; font-size: 12px; margin-top: 2px; }
+  /* 検索で見つかった場所（営業のピンとは別。赤い丸に名前） */
+  .found { display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%); }
+  .found b { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: 8px;
+             background: #fff; border: 1px solid #e74c3c; color: #c0392b; font-size: 11px; }
+  .found i { width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #e74c3c; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.4); }
+  #findList.hide { display: none; }
+  .cv { width: 14px; height: 14px; border-radius: 3px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.5); }
+  .find .note button { margin-left: 6px; padding: 2px 8px; border-radius: 8px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; font-size: 12px; }
+  /* 市・町の境目（検索で選んだ地名を赤白の点線で囲む）と、消すボタン */
+  #areaChip { display: none; position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top)); z-index: 6;
+              align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 20px; background: #fff; box-shadow: 0 2px 8px rgba(24,32,46,.2);
+              font-size: 14px; font-weight: 700; color: #18202e; white-space: nowrap; max-width: calc(100% - 120px); }
+  #areaChip.on { display: flex; } #areaChip span { overflow: hidden; text-overflow: ellipsis; }
+  #areaChip button { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; background: #eef2f9; color: #18202e; font-size: 14px; }
+  .spot { width: 22px; height: 22px; border-radius: 50%; border: 4px solid #e74c3c; background: rgba(231,76,60,.25); box-shadow: 0 0 0 2px #fff; }
+  .coord { font-size: 13px; color: #4b5567; margin-top: 4px; }
+  .links { display: flex; gap: 8px; margin-top: 12px; }
+  .links button { flex: 1; padding: 11px 0; font-size: 15px; font-weight: 600; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; }
+  /* 左上：表示中の数と絞り込み */
+  .showBtn { position: fixed; left: 10px; z-index: 5; padding: 8px 12px; border-radius: 18px; border: 1px solid #e3e8f0; background: #fff;
+             box-shadow: 0 2px 8px rgba(24,32,46,.15); font-size: 13px; font-weight: 600; color: #18202e; }
+  .showBtn.on { background: #18202e; color: #fff; border-color: #18202e; }
+  .pinMk { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+  .sheet .kinds label { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; padding: 8px 10px; background: #fff; border: 1px solid #e3e8f0;
+                 border-radius: 10px; font-size: 16px; color: #18202e; }
+  .sheet .kinds label svg { flex: none; width: 24px; height: 32px; }
+  .sheet .kinds label span { flex: 1; }
+  .kinds input { width: 22px; height: 22px; flex: none; }
+  .two { display: flex; gap: 8px; margin-bottom: 8px; }
+  .two button { flex: 1; padding: 9px; font-size: 14px; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; color: #2a56a8; }
+  /* 地図の上の名前 */
+  .person { display: flex; flex-direction: column; align-items: center; }
+  .person b { padding: 2px 7px; border-radius: 9px; background: #18202e; color: #fff; font-size: 12px; white-space: nowrap; }
+  .person i { width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #e67e22; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,.4); }
+  .person.old { opacity: .5; }
+  /* 重なる画面 */
+  .sheet { display: none; position: fixed; inset: 0; z-index: 20; overflow-y: auto; padding: 16px 16px 40px; background: #f6f8fb; }
+  .sheet.open { display: block; }
+  .sheet h2 { margin: 0 0 6px; font-size: 20px; }
+  .sheet label { display: block; font-size: 14px; color: #555; margin: 14px 0 6px; }
+  .sub { font-size: 13px; color: #4b5567; line-height: 1.6; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stats button { padding: 13px 0; font-size: 16px; font-weight: 600; border-radius: 10px; border: 2px solid transparent; color: #fff; }
+  .stats button.on { border-color: #18202e; box-shadow: 0 0 0 2px #fff inset; }
+  .stats button { padding: 11px 2px; font-size: 14px; }
+  .stats button.light { color: #18202e; border-color: #cfd6e2; }
+  .stats button.light.on { border-color: #18202e; }
+  /* 地図に置くときの種類 */
+  .tags { display: none; gap: 6px; overflow-x: auto; margin: 0 -2px 8px; padding: 2px; -webkit-overflow-scrolling: touch; }
+  .panel.placing .tags { display: flex; }
+  .tags button { flex: none; padding: 8px 11px; font-size: 14px; font-weight: 600; border-radius: 18px; border: 2px solid transparent; color: #fff; }
+  .tags button.light { color: #18202e; border-color: #cfd6e2; }
+  .tags button.on { border-color: #18202e; box-shadow: 0 0 0 2px #fff inset; }
+  .names button { display: block; width: 100%; margin-bottom: 8px; padding: 13px; font-size: 17px; text-align: left; border-radius: 10px; border: 1px solid #e3e8f0; background: #fff; }
+  .photo img, .visit img { display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border-radius: 8px; }
+  .actions { display: flex; gap: 10px; margin: 20px 0 10px; }
+  .actions button { flex: 1; padding: 14px; font-size: 17px; font-weight: 600; border-radius: 12px; border: 0; }
+  .ok { background: #27ae60; color: #fff; }
+  .cancel { background: #ddd; }
+  .visit { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid #ddd; }
+  .visit .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+  .badge { padding: 3px 9px; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .visit p { margin: 6px 0 0; font-size: 15px; white-space: pre-wrap; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 30;
+             align-items: center; justify-content: center; flex-direction: column; font-size: 16px; font-weight: 600; }
+  body.busy #overlay { display: flex; }
+  .spinner { width: 44px; height: 44px; border: 5px solid #ccc; border-top-color: #2980b9; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Oswald:wght@400;500&family=Shippori+Mincho+B1:wght@700&display=swap" rel="stylesheet">
+<script>
+  // 明るい・暗い：端末の設定に合わせる。右上のボタンで切り替えると、その端末に覚える（lfTheme）
+  (function () { try { var t = localStorage.getItem('lfTheme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+</script>
+<style>
+  /* 住宅設備アプリ共通のデザイン（2026-11-18 作り直し：明るい・暗い、パソコンは左にメニュー）。
+     色は Lien Fort（lienfort.co.jp）の紺と青。各画面の style より後に読むので上書きになる */
+  :root { --ink: #18202e; --blue: #2a56a8; --btn: #2a56a8; --sub: #5b6577; --line: #e2e7ef; --bg: #f3f5f9; --pale: #eef2f9;
+          --surface: #fff; --surface2: #f6f8fb; --track: #e9edf3; --bar: #18202e; --chip: #18202e; --chipInk: #fff;
+          --veil: rgba(243,245,249,.72); --shadow: 0 1px 2px rgba(24,32,46,.06), 0 8px 24px rgba(24,32,46,.05);
+          --pend: #fff3cd; --pendInk: #7a5b00; --goodBg: #eafaf0; --badBg: #fdecea;
+          --en: Oswald, "Arial Narrow", sans-serif; --num: Inter, "Hiragino Sans", sans-serif; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ink: #eef2f8; --blue: #7fa2e8; --sub: #9aa6b8; --line: #263042; --bg: #0d121b; --pale: #1c2433;
+          --surface: #161d29; --surface2: #1c2433; --track: #263042; --bar: #0a0f17; --chip: #eef2f8; --chipInk: #0d121b;
+          --veil: rgba(13,18,27,.72); --shadow: none; --pend: #3a3216; --pendInk: #f0d58a; --goodBg: #12301f; --badBg: #3a1a1a; color-scheme: dark; }
+
+  body { background: var(--bg) !important; color: var(--ink) !important; padding: 0 14px 40px !important;
+         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important; }
+
+  /* 上の帯 */
+  .lf-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -14px 14px; padding: 12px 14px;
+            background: var(--bar); color: #fff; }
+  .lf-back { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+             border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #fff; text-decoration: none; font-size: 24px; }
+  .lf-t small { display: block; font-family: var(--en); font-size: 10px !important; letter-spacing: .3em; color: #8fa6cf !important; }
+  .lf-t b { font-size: 17px; letter-spacing: .05em; color: #fff; }
+  .lf-theme { flex: none; margin-left: auto; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+              border: 1px solid rgba(255,255,255,.18); border-radius: 10px; background: rgba(255,255,255,.06); color: #fff; padding: 0; cursor: pointer; }
+  .lf-theme svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .lf-bar .who ~ .lf-theme, .lf-bar .lf-theme ~ .who { margin-left: 8px; }
+
+  /* 入力欄 */
+  select, input, textarea { background: var(--surface) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid rgba(42,86,168,.35); border-color: var(--blue) !important; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--btn); }
+  h2, h3, .card h3 { letter-spacing: .03em; color: var(--ink) !important; }
+  label, .note, .sub, small, #msg, .legend, .count, .calc, .coord, .state, .card dt, .gcard p { color: var(--sub) !important; }
+  td.s small, .shd td.c small, button.r small, .tiles a.app.main small { color: rgba(255,255,255,.85) !important; } td.s.last small { color: #5c4b00 !important; }
+
+  /* 面（カード・表・パネル） */
+  .card, .summary, .summary > div, .tbl, .gcard, .sheet .in, #close, .visit, .panel, .find, .fab, .showBtn,
+  td.d, .mon td, .shd td:not(.c), .checks label, #sale .checks label, .sheet .kinds label, .names button, #pickList button {
+    background: var(--surface) !important; border-color: var(--line) !important; color: var(--ink); }
+  .card, .tbl, .summary > div, .summary, .gcard, .visit { border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--shadow) !important; }
+  .card summary, .req { color: var(--blue) !important; }
+  .summary div { font-size: 12px; color: var(--sub); }
+  .summary b, .big, .rk .v, .v, .gy td b { font-family: var(--num) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .summary b { font-weight: 800; font-size: 28px !important; color: var(--ink); }
+  .big { font-weight: 800 !important; color: var(--ink) !important; }
+  .bar, .left .bar { background: var(--track) !important; }
+  .bar i, .left .bar i { background: var(--btn) !important; } .bar i.ok { background: #27ae60 !important; }
+  td.d.today, .mon td.today { border-color: var(--blue) !important; color: var(--blue); }
+  td.s.free { background: var(--btn) !important; }
+  td.s.block { background: var(--pale) !important; }
+  .legend span:first-child i { background: var(--btn) !important; }
+  .sec { border-top-color: var(--line) !important; color: var(--ink); }
+  .st { background: var(--pale) !important; color: var(--ink) !important; }
+  .st.shoho { background: #8e44ad !important; color: #fff !important; }
+  .st.x { background: var(--badBg) !important; color: #e06b5f !important; }
+  #pending { background: var(--pend) !important; color: var(--pendInk) !important; }
+  .checks label, #sale .checks label, .sheet .kinds label { color: var(--ink) !important; }
+
+  /* 表（KPI） */
+  table { color: var(--ink); }
+  th { background: var(--surface2) !important; color: var(--sub) !important; border-color: var(--line) !important; }
+  td { border-color: var(--line) !important; }
+  .tbl td:first-child { background: var(--surface) !important; }
+  .tbl th:first-child, tr.total td { background: var(--surface2) !important; }
+  td.good { background: var(--goodBg) !important; } td.bad { background: var(--badBg) !important; }
+
+  /* ボタン。結果ボタンの色（成約＝緑など）は見分けやすさのため各画面のまま */
+  button { font-family: inherit; }
+  button.r { border-radius: 14px !important; box-shadow: 0 2px 0 rgba(0,0,0,.14); letter-spacing: .03em; }
+  .undo, .listbtn, .nav button, .btns > *, .cancel, .seg button, .gyreset, .admin button, .opts button, .two button, .links button,
+  .sides button, .close-btn, .choice button, .kinds button, .pc button, #goalEdit, .del, .add {
+    background: var(--surface) !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+  .listbtn, .btns > *, .btns .map, .links button, .two button, #goalEdit, .close-btn { color: var(--blue) !important; }
+  .del { color: #e06b5f !important; border-color: rgba(224,107,95,.5) !important; }
+  .add { border: 2px dashed var(--blue) !important; color: var(--blue) !important; }
+  .ok, .acts .ok, .gcard .go, #close .ok { background: var(--btn) !important; color: #fff !important; }
+  .tabs { gap: 6px !important; }
+  .tabs button, .seg button { border-radius: 999px !important; border: 1px solid var(--line) !important; background: var(--surface) !important; color: var(--sub) !important; font-weight: 600; }
+  .tabs button.on, .seg button.on, .opts button.on, .choice button.on, .sides button.on, .showBtn.on {
+    background: var(--chip) !important; border-color: var(--chip) !important; color: var(--chipInk) !important; }
+  .kinds button.on { background: #8e44ad !important; border-color: #8e44ad !important; color: #fff !important; }
+  #clockBtn { background: var(--pale) !important; color: var(--ink) !important; }
+  #clockBtn.on { background: var(--badBg) !important; color: #e06b5f !important; }
+  #placeBtn { background: var(--surface) !important; }
+  #findList button { color: var(--ink) !important; border-top-color: var(--line) !important; }
+  .fab, .fab * { color: var(--blue) !important; } #layerBtn, #findBtn, .showBtn { color: var(--ink) !important; }
+  #areaChip { background: var(--surface) !important; color: var(--ink) !important; } #areaChip button { background: var(--pale) !important; color: var(--ink) !important; }
+
+  /* ランキング：1〜3位は丸い数字（金・銀・銅） */
+  .rk .n { font-family: var(--num); }
+  .rk.m1 .n, .rk.m2 .n, .rk.m3 .n { width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                    font-size: 13px; font-weight: 800; }
+  .rk.m1 .n { background: #e9c46a; color: #18202e !important; }
+  .rk.m2 .n { background: #cfd5de; color: #18202e !important; }
+  .rk.m3 .n { background: #dcae86; color: #18202e !important; }
+  /* 目立たせるカード（チーム売上など） */
+  .card.feature { background: #18202e !important; border-color: #18202e !important; color: #fff; }
+  :root[data-theme="dark"] .card.feature { background: #1d2a44 !important; border-color: #2c3d5f !important; }
+  .card.feature h3, .card.feature .big { color: #fff !important; }
+  .card.feature .sub, .card.feature h3 small { color: #b8c4d8 !important; }
+  .card.feature .bar { background: rgba(255,255,255,.14) !important; } .card.feature .bar i { background: #5b8def !important; }
+
+  /* 重なる画面（入力・一覧など）と読み込み中 */
+  .sheet, #sale, #list, #pick { background: var(--bg) !important; }
+  #pickList button { border-color: var(--line) !important; }
+  #overlay { background: var(--veil) !important; color: var(--ink); }
+  #goalBox { background: rgba(0,0,0,.55) !important; }
+  .spinner { border-color: var(--track) !important; border-top-color: var(--btn) !important; }
+
+  /* パソコン：左にメニュー（#lfSide は下のスクリプトで作る） */
+  #lfSide { display: none; }
+  @media (min-width: 1024px) {
+    body.lf-side { padding-left: 264px !important; padding-right: 32px !important; }
+    body.lf-side .lf-bar { margin: 0 -32px 20px; padding-left: 32px; padding-right: 32px; }
+    body.lf-side .lf-back { display: none; }
+    body.lf-side > .hero { margin-left: -32px !important; margin-right: -32px !important; padding-left: 40px !important; }
+    #lfSide { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: 232px; z-index: 40; flex-direction: column; gap: 22px;
+              padding: 26px 14px; box-sizing: border-box; overflow-y: auto; background: #111824; color: #eef2f8; }
+    #lfSide .lg { display: block; padding: 0 10px; text-decoration: none; color: #eef2f8; }
+    #lfSide .lg small { display: block; font-family: var(--en); font-size: 11px; letter-spacing: .35em; color: #7fa2e8; }
+    #lfSide .lg b { font-family: "Shippori Mincho B1", serif; font-size: 22px; letter-spacing: .12em; }
+    #lfSide nav { display: flex; flex-direction: column; gap: 2px; }
+    #lfSide nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #b8c4d8; text-decoration: none; font-size: 14px; }
+    #lfSide nav a:hover { background: #1a2333; color: #fff; }
+    #lfSide nav a.on { background: #2a56a8; color: #fff; font-weight: 700; }
+    #lfSide nav a span { font-family: var(--en); font-size: 9px; letter-spacing: .2em; color: #6f82a6; width: 58px; flex: none; }
+    #lfSide nav a.on span { color: #c9d8f7; }
+  }
+</style>
+<script>
+  // 右上の明るい・暗いボタンと、パソコンの左メニュー
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.documentElement;
+    var dark = function () { var t = root.getAttribute('data-theme'); return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+    var SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+    var MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    var host = document.querySelector('.lf-bar') || document.querySelector('.hero');
+    if (host) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'lf-theme';
+      var paint = function () { b.innerHTML = dark() ? SUN : MOON; b.setAttribute('aria-label', dark() ? '明るい表示にする' : '暗い表示にする'); };
+      b.onclick = function () { var t = dark() ? 'light' : 'dark'; root.setAttribute('data-theme', t); try { localStorage.setItem('lfTheme', t); } catch (e) {} paint(); };
+      paint();
+      if (host.classList.contains('hero')) { b.style.position = 'absolute'; b.style.top = '18px'; b.style.right = '16px'; b.style.zIndex = '2'; host.appendChild(b); }
+      else host.insertBefore(b, host.querySelector('.who'));
+    }
+    // 地図の画面は全面を地図に使うので左メニューを出さない
+    if (document.getElementById('map')) return;
+    var gh = /github\.io$/.test(location.hostname);
+    var a0 = document.querySelector('a.lf-back, a[href*="?page="]');
+    var base = a0 ? a0.href.split('?')[0] : '';
+    var MAP = 'map.html';
+    var PAGES = [['yotei', '商談予定', 'SCHEDULE'], ['tataki', '叩きカウンター', 'COUNTER'],
+                 ['saiji', '催事', 'REPORT'], ['sales', '売上', 'SALES'],
+                 ['kpi', 'KPI・ランキング', 'KPI'], ['settings', '設定', 'SETTINGS'], ['map', '営業マップ', 'MAP']];
+    var href = function (k) { return k === 'map' ? (gh ? 'map.html' : MAP) : gh ? (k === 'menu' ? 'index.html' : k + '.html') : base + (k === 'menu' ? '' : '?page=' + k); };
+    var title = (document.querySelector('.lf-t b') || {}).textContent || '';
+    var file = location.pathname.split('/').pop();
+    var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var side = document.createElement('aside');
+    side.id = 'lfSide';
+    side.innerHTML = '<a class="lg" target="_top" href="' + esc(href('menu')) + '"><small>LIEN FORT</small><b>住宅設備</b></a><nav>' + PAGES.map(function (p) {
+      var on = gh ? file === p[0] + '.html' : title.replace('催事 お客様登録', '催事のお客様登録') === p[1];
+      return '<a target="_top" class="' + (on ? 'on' : '') + '" href="' + esc(href(p[0])) + '"><span>' + p[2] + '</span>' + p[1] + '</a>';
+    }).join('') + '</nav>';
+    document.body.appendChild(side);
+    document.body.classList.add('lf-side');
+  });
+</script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="lf-bar" id="bar"><a href="index.html" class="lf-back" aria-label="メニュー">‹</a><div class="lf-t"><small>LIEN FORT</small><b>営業マップ</b></div>
+    <button class="who" id="whoBtn">名前</button></header>
+  <div id="map"></div>
+  <div class="gLogo" id="gLogo" style="display:none"><img src="https://maps.gstatic.com/mapfiles/api-3/images/google_white5_hdpi.png" alt="Google"><span id="gCopy"></span></div>
+  <button class="showBtn" id="showBtn">表示</button>
+  <button class="fab" id="meBtn" aria-label="現在地へ">◎</button>
+  <button class="fab" id="layerBtn">写真</button>
+  <button class="fab" id="findBtn">検索</button>
+  <div class="panel" id="panel">
+    <div class="state" id="state"><i></i><span id="stateText">読み込み中…</span></div>
+    <div class="tags" id="tags"></div>
+    <div class="row"><button id="clockBtn">出勤</button><button id="pinBtn">今ここにピン</button><button id="placeBtn">地図に置く</button></div>
+  </div>
+
+  <!-- 名前を選ぶ -->
+  <div class="sheet" id="who">
+    <h2>名前を選んでください</h2>
+    <div class="sub">このスマホに覚えます。ピンと訪問の記録、現在地にこの名前が出ます。</div>
+    <label>名前</label>
+    <div class="names" id="names"></div>
+    <label class="free">一覧にないとき</label>
+    <input class="free" id="nameIn" placeholder="名前を入れる">
+    <div class="actions"><button class="cancel" id="whoCancel">戻る</button><button class="ok" id="whoOk">決める</button></div>
+  </div>
+
+  <!-- ピンを立てる／訪問を記録 -->
+  <div class="sheet" id="form">
+    <h2 id="formTitle">ピンを立てる</h2>
+    <div class="sub" id="formSub"></div>
+    <label>ステータス</label>
+    <div class="stats" id="stats"></div>
+    <label>お客様名（〇〇邸）</label>
+    <input id="cust" placeholder="例：中園邸（なくてもよい）">
+    <label>よみがな（ひらがなで検索できるように）</label>
+    <input id="kana" placeholder="例：なかぞのてい">
+    <label>メモ</label>
+    <textarea id="memo" rows="3" placeholder="お客様の様子、次に話すことなど"></textarea>
+    <label>写真</label>
+    <input type="file" id="photoIn" accept="image/*" capture="environment">
+    <div class="photo" id="photoPrev"></div>
+    <div class="actions"><button class="cancel" id="formCancel">やめる</button><button class="ok" id="formOk">保存</button></div>
+  </div>
+
+  <!-- ピンの訪問履歴 -->
+  <div class="sheet" id="view">
+    <h2 id="viewTitle"></h2>
+    <div class="sub" id="viewSub"></div>
+    <div class="coord" id="viewCoord"></div>
+    <div class="links"><button id="shareBtn">共有</button><button id="copyBtn">コピー</button><button id="gmapBtn">Googleマップ</button></div>
+    <div class="actions"><button class="cancel" id="viewClose">閉じる</button><button class="ok" id="visitBtn">訪問を記録</button></div>
+    <div id="visits"></div>
+    <button class="del" id="delBtn">このピンを消す（置き間違い）</button>
+  </div>
+
+  <!-- 場所の検索（地名・住所・店名・座標・Googleマップのリンク） -->
+  <div id="areaChip"><span id="areaName"></span><button id="areaX" aria-label="囲みを消す">✕</button></div>
+  <div class="find" id="find">
+    <div class="bar"><input id="findIn" placeholder="地名・住所・店名・座標" enterkeyhint="search"><button id="findGo">検索</button><button class="x" id="findClose">✕</button></div>
+    <div class="note" id="findNote">Googleマップのリンクや「33.59, 130.40」のような座標も使えます</div>
+    <div id="findList"></div>
+  </div>
+
+  <!-- 表示するピン（凡例も兼ねる） -->
+  <div class="sheet" id="filter">
+    <h2>表示するピン</h2>
+    <div class="sub" id="filterSub"></div>
+    <label>担当者（立てた人・最後に訪問した人）</label>
+    <select id="fWho"></select>
+    <label>期間（最後に立てた・訪問した日）</label>
+    <select id="fDays"><option value="0">全部</option><option value="1">今日</option><option value="2">昨日から</option>
+      <option value="7">直近7日</option><option value="30">直近30日</option></select>
+    <label>種類</label>
+    <div class="two"><button id="fAll">全部表示</button><button id="fNone">全部消す</button></div>
+    <div class="kinds" id="fKinds"></div>
+    <div class="actions"><button class="cancel" id="fReset">元に戻す</button><button class="ok" id="fClose">閉じる</button></div>
+  </div>
+
+  <div id="overlay"><div class="spinner"></div><span id="overlayText">保存中…</span></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const run = (fn, ...a) => new Promise((ok, ng) => google.script.run.withSuccessHandler(ok).withFailureHandler(ng)[fn](...a));
+  const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+                  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } } };
+  const COLORS = { '新規': '#ffffff', '10年以上': '#7cc8f0', '9年以下': '#f5c542', '蓄電池、ファ': '#1d4ed8', 'NG': '#e74c3c', '対象外': '#a855f7',
+    '見込み・再訪問': '#16a34a', 'アポ獲得': '#eef03a', '訪問禁止': '#b91c1c', '駐車位置': '#0e7490', '境界線': '#ca8a04', '顧客': '#06b6d4',
+    'クーリングオフ・ローン否決': '#374151', '未分類': '#9ca3af' };
+  const LIGHT = ['新規', '10年以上', '9年以下', 'アポ獲得']; // 色が薄いので字を黒に
+  // ピンのマーク（しずく形に1文字）
+  const MARKS = { '新規': '新', '10年以上': '10', '9年以下': '9', '蓄電池、ファ': '蓄', 'NG': '✕', '対象外': '外', '見込み・再訪問': '再',
+    'アポ獲得': 'ア', '訪問禁止': '禁', '駐車位置': 'P', '境界線': '境', '顧客': '顧', 'クーリングオフ・ローン否決': '否', '未分類': '?' };
+  function pinSvg(st, wait) {
+    const c = COLORS[st] || '#9ca3af', light = LIGHT.includes(st), mk = MARKS[st] || '?';
+    return `<svg class="pinMk" viewBox="0 0 30 40" width="30" height="40"><path d="M15 39C15 39 2 23.5 2 14.5a13 13 0 0 1 26 0C28 23.5 15 39 15 39z"
+      fill="${c}" stroke="${light ? '#18202e' : '#fff'}" stroke-width="2"${wait ? ' stroke-dasharray="4 3"' : ''}/>
+      <text x="15" y="19" text-anchor="middle" font-size="${mk.length > 1 ? 11 : 13}" font-weight="700" font-family="Hiragino Sans, sans-serif"
+      fill="${light ? '#18202e' : '#fff'}">${mk}</text></svg>`;
+  }
+  const pinIcon = (st, wait) => L.divIcon({ className: '', html: pinSvg(st, wait), iconSize: [30, 40], iconAnchor: [15, 39] });
+  const tagBtn = s => `<button style="background:${COLORS[s] || '#9ca3af'}" class="${LIGHT.includes(s) ? 'light' : ''}">${s}</button>`;
+  const SEND_MS = 60000;
+
+  const AGENT = 'agent' === 'agent'; // 代理店用（dairiten.html）：地図だけ。メニューへ戻らない・名前は一覧から選ぶ
+  if (AGENT) { document.querySelector('.lf-back').remove(); document.querySelectorAll('#who .free').forEach(e => e.remove()); }
+  let me = store.get(AGENT ? 'mNameAg' : 'mName', ''), on = false, pos = null, ver = '', pins = [], statuses = Object.keys(COLORS);
+  let queue = store.get('mQueue', []), lastSent = 0, wake = null, follow = true;
+  let form = null; // { mode: 'pin'|'visit', pin, status, photo }
+  let placing = false; // 「地図に置く」：地図を押した場所に未訪問ピンを置く（前日に回るエリアを決めるとき）
+
+  // ===== 地図（国土地理院の淡色地図と航空写真。無料・会社での利用も可）。右上のボタンで切り替え、スマホが覚える =====
+  const map = L.map('map', { zoomControl: false, attributionControl: true, maxZoom: 21 }) // 拡大の上限を先に決める（写真の準備中でもピンのまとめ表示が動くように）.setView([35.68, 139.76], 15);
+  const gsi = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>';
+  // 写真は Google の衛星写真（Map Tiles API。キーは lienfort0529-design.github.io だけで使えるように制限してある）。
+  // 使えないとき（キーの問題・電波など）は国土地理院の航空写真に切り替える
+  const GKEY = 'AIzaSyA0O59G6RPbTsPkvc3BgiQ2T89Zl4tHtuw';
+  const gsiPhoto = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { maxZoom: 21, maxNativeZoom: 18, attribution: gsi });
+  const layers = {
+    map: L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 18, attribution: gsi }),
+    photo: gsiPhoto,
+  };
+  // Google の写真を見るための通行証（2週間ほど使える。スマホに覚えて、毎回は作らない＝料金を抑える）
+  async function gSession() {
+    const s = store.get('gSession', null);
+    if (s && s.expiry * 1000 > Date.now() + 86400000) return s.session;
+    const r = await fetch('https://tile.googleapis.com/v1/createSession?key=' + GKEY, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapType: 'satellite', language: 'ja-JP', region: 'JP' }) });
+    if (!r.ok) throw new Error('Google ' + r.status);
+    const j = await r.json();
+    store.set('gSession', { session: j.session, expiry: Number(j.expiry) });
+    return j.session;
+  }
+  let gReady = null;
+  function googlePhoto() {
+    return gReady = gReady || gSession().then(session => {
+      const t = L.tileLayer(`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${session}&key=${GKEY}`,
+        { maxZoom: 21, maxNativeZoom: 21, keepBuffer: 1, updateWhenZooming: false, attribution: 'Google' });
+      t.on('tileerror', () => { gErrors++; if (gErrors > 20 && layer === 'photo') useGsiPhoto(); });
+      return t;
+    });
+  }
+  let gErrors = 0;
+  function useGsiPhoto() {
+    layers.photo.remove(); layers.photo = gsiPhoto;
+    if (layer === 'photo') gsiPhoto.addTo(map);
+    $('gLogo').style.display = 'none';
+  }
+  // Google の写真を出している間は、決まりどおりロゴと著作権を表示する（地図を動かしたら取り直す）
+  async function gCopyright() {
+    if (layer !== 'photo' || layers.photo === gsiPhoto) { $('gLogo').style.display = 'none'; return; }
+    $('gLogo').style.display = '';
+    try {
+      const b = map.getBounds(), session = await gSession();
+      const r = await fetch(`https://tile.googleapis.com/tile/v1/viewport?session=${session}&key=${GKEY}&zoom=${map.getZoom()}` +
+        `&north=${b.getNorth()}&south=${b.getSouth()}&east=${b.getEast()}&west=${b.getWest()}`).then(x => x.json());
+      $('gCopy').textContent = r.copyright || '';
+    } catch (e) {}
+  }
+  map.on('moveend', gCopyright);
+
+  let layer = store.get('mLayer', 'map') === 'photo' ? 'photo' : 'map';
+  async function setLayer(k) {
+    layers[layer].remove();
+    layer = k; store.set('mLayer', k);
+    if (k === 'photo' && layers.photo === gsiPhoto && !gErrors) {
+      try { layers.photo = await googlePhoto(); } catch (e) { layers.photo = gsiPhoto; }
+    }
+    if (layer === k) layers[k].addTo(map);
+    $('layerBtn').textContent = k === 'photo' ? '地図' : '写真';
+    gCopyright();
+  }
+  $('layerBtn').onclick = () => setLayer(layer === 'photo' ? 'map' : 'photo');
+  setLayer(layer);
+  // ピンは縮小すると件数の丸にまとめる（数千本でも軽く動くように）
+  const pinLayer = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 50, disableClusteringAtZoom: 17, showCoverageOnHover: false }).addTo(map);
+  const peopleLayer = L.layerGroup().addTo(map);
+  const meDot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: '#2a56a8', fillOpacity: 1 });
+  const meAcc = L.circle([0, 0], { radius: 1, color: '#2a56a8', weight: 1, fillOpacity: .1 });
+  map.on('dragstart', () => { follow = false; });
+
+  function layout() {
+    const top = $('bar').getBoundingClientRect().bottom;
+    $('map').style.top = top + 'px';
+    $('showBtn').style.top = (top + 10) + 'px';
+    $('meBtn').style.top = (top + 10) + 'px';
+    $('layerBtn').style.top = (top + 64) + 'px';
+    $('findBtn').style.top = (top + 118) + 'px';
+    $('find').style.top = (top + 8) + 'px';
+  }
+  window.addEventListener('resize', layout);
+
+  // ===== 表示するピン（種類・担当者・期間。スマホが覚える） =====
+  const F0 = { hide: [], who: '', days: 0 };
+  let filt = Object.assign({}, F0, store.get('mFilter', {}));
+  const filtered = () => filt.hide.length > 0 || !!filt.who || filt.days > 0;
+  function visible(p, st) {
+    if (p.wait) return true; // 未送信は必ず出す
+    if (filt.hide.includes(st)) return false;
+    if (filt.who && p.by !== filt.who && p.lastBy !== filt.who) return false;
+    if (filt.days > 0) {
+      const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - (filt.days - 1));
+      if (Math.max(p.last || 0, p.created || 0) < from.getTime()) return false;
+    }
+    return true;
+  }
+  function saveFilter() { store.set('mFilter', filt); drawPins(); drawFilter(); }
+  function drawFilter() {
+    const who = [...new Set(names.concat(pins.map(p => p.by), pins.map(p => p.lastBy)).filter(Boolean))];
+    $('fWho').innerHTML = '<option value="">全員</option>' + who.map(n => `<option>${esc(n)}</option>`).join('');
+    $('fWho').value = filt.who; $('fDays').value = String(filt.days);
+    $('fKinds').innerHTML = statuses.map(s => `<label>${pinSvg(s)}<span>${s}</span><input type="checkbox" ${filt.hide.includes(s) ? '' : 'checked'}></label>`).join('');
+    [...$('fKinds').querySelectorAll('input')].forEach((c, i) => c.onchange = () => {
+      const s = statuses[i];
+      filt.hide = c.checked ? filt.hide.filter(x => x !== s) : filt.hide.concat(s);
+      saveFilter();
+    });
+  }
+  $('fWho').onchange = () => { filt.who = $('fWho').value; saveFilter(); };
+  $('fDays').onchange = () => { filt.days = Number($('fDays').value); saveFilter(); };
+  $('fAll').onclick = () => { filt.hide = []; saveFilter(); };
+  $('fNone').onclick = () => { filt.hide = statuses.slice(); saveFilter(); };
+  $('fReset').onclick = () => { filt = Object.assign({}, F0); saveFilter(); };
+  $('fClose').onclick = () => $('filter').classList.remove('open');
+  $('showBtn').onclick = () => { drawFilter(); $('filter').classList.add('open'); };
+
+  // ===== 自分の位置（画面を開いている間ずっと見る。送るのは出勤中だけ） =====
+  function watch() {
+    if (!navigator.geolocation) { setState('このスマホでは位置情報が使えません'); return; }
+    navigator.geolocation.watchPosition(p => {
+      const first = !pos;
+      pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy };
+      meDot.setLatLng([pos.lat, pos.lng]).addTo(map);
+      meAcc.setLatLng([pos.lat, pos.lng]).setRadius(pos.acc).addTo(map);
+      if (first || follow) map.setView([pos.lat, pos.lng], first ? 16 : map.getZoom());
+      if (on && Date.now() - lastSent >= SEND_MS) tick();
+      setState();
+    }, e => setState(e.code === 1 ? '位置情報が許可されていません（設定 → Safari（またはChrome）→ 位置情報 → 許可）' : '位置を取得できません'),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  }
+  $('meBtn').onclick = () => { follow = true; if (pos) map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 16)); };
+
+  // ===== 1分ごと：位置を送って、ピンとみんなの位置をもらう =====
+  function tick() {
+    if (!me) return;
+    lastSent = Date.now();
+    run('mPing', me, on && pos ? pos : null, ver).then(show).catch(e => setState('通信できません：' + e.message));
+    flush();
+  }
+  // 50人が同じ秒に送らないように、最初の1分の中でずらしてから1分ごと
+  setTimeout(() => { tick(); setInterval(tick, SEND_MS); }, Math.random() * SEND_MS);
+
+  function show(d) {
+    on = d.on;
+    if (d.reset) { pins = []; tiles.clear(); ver = ''; drawPins(); loadArea(); } // 長く開いていなかったので読み込み直す
+    else if (d.changes) { applyChanges(d.changes); ver = d.ver; }
+    peopleLayer.clearLayers();
+    d.people.filter(p => p.name !== me).forEach(p => {
+      const icon = L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 34],
+        html: `<div class="person${p.live ? '' : ' old'}" style="transform:translateX(-50%)"><b>${esc(p.name)} ${ago(p.at)}</b><i></i></div>` });
+      L.marker([p.lat, p.lng], { icon, zIndexOffset: 1000 }).addTo(peopleLayer);
+    });
+    $('clockBtn').textContent = on ? '退勤' : '出勤';
+    $('clockBtn').classList.toggle('on', on);
+    keepAwake();
+    setState();
+  }
+
+  // ===== 見ている地域のピンだけ読む（地域＝約10km四方。ピンが何万本になっても速さが変わらない） =====
+  const tiles = new Set(); // 読み込んだ地域
+  const tileKey = (lat, lng) => 'P' + Math.floor(lat * 10) + '_' + Math.floor(lng * 10);
+  let loadingArea = false;
+  function loadArea() {
+    if (loadingArea || map.getZoom() < 11) return; // 広すぎる範囲は読まない
+    const b = map.getBounds().pad(0.3), need = [];
+    for (let a = Math.floor(b.getSouth() * 10); a <= Math.floor(b.getNorth() * 10); a++)
+      for (let o = Math.floor(b.getWest() * 10); o <= Math.floor(b.getEast() * 10); o++)
+        if (!tiles.has('P' + a + '_' + o)) need.push('P' + a + '_' + o);
+    if (!need.length) return;
+    loadingArea = true;
+    const keys = need.slice(0, 40);
+    run('mPins', keys).then(r => {
+      keys.forEach(k => tiles.add(k));
+      const ids = new Set(r.pins.map(p => p.id));
+      pins = pins.filter(p => !ids.has(p.id)).concat(r.pins);
+      if (!ver) ver = r.ver;
+      loadingArea = false;
+      drawPins();
+      loadArea(); // まだ足りない地域があれば続けて
+    }).catch(() => { loadingArea = false; });
+  }
+  map.on('moveend', loadArea);
+  let showLabel = '表示 ▾';
+  const drawShowBtn = () => { $('showBtn').textContent = map.getZoom() < 11 ? 'ピンは拡大すると出ます ▾' : showLabel; };
+  map.on('zoomend', drawShowBtn);
+
+  // 前回から変わったピン（読み込んだ地域のものだけ持つ）
+  function applyChanges(ch) {
+    if (!ch.length) return;
+    ch.forEach(c => {
+      pins = pins.filter(p => p.id !== c.id);
+      if (!c.deleted && tiles.has(tileKey(c.lat, c.lng))) pins.push(c);
+    });
+    drawPins();
+  }
+
+  function drawPins() {
+    pinLayer.clearLayers();
+    const waiting = queue.filter(q => q.fn === 'mAddPin').map(q => Object.assign({ wait: true, by: q.arg.name, count: q.arg.plan ? 0 : 1 }, q.arg));
+    const gone = queue.filter(q => q.fn === 'mDeletePin').map(q => q.arg.id || q.arg);
+    const all = pins.concat(waiting).filter(p => !gone.includes(p.id));
+    const marks = [];
+    all.forEach(p => {
+      const st = latestStatus(p);
+      if (!visible(p, st)) return;
+      marks.push(L.marker([p.lat, p.lng], { icon: pinIcon(st, p.wait) }).on('click', () => openView(p)));
+    });
+    pinLayer.addLayers(marks);
+    const n = marks.length;
+    showLabel = filtered() ? `絞り込み中 ${n}/${all.length} ▾` : `表示 ${all.length}件 ▾`;
+    drawShowBtn();
+    $('showBtn').classList.toggle('on', filtered());
+  }
+
+  // 未送信の訪問があれば、そのステータスを優先して色を付ける
+  function latestStatus(p) {
+    const v = queue.filter(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id).pop();
+    return v ? v.arg.status : p.status;
+  }
+
+  function setState(msg) {
+    $('state').classList.toggle('on', on);
+    const wait = queue.length ? `　未送信 ${queue.length}件` : '';
+    $('panel').classList.toggle('placing', placing);
+    $('stateText').textContent = msg || (!me ? '右上で名前を選んでください' : placing
+      ? `地図を押した場所に「${placeTag}」のピンを置きます${wait}`
+      : on
+      ? `出勤中・位置を共有しています（画面を開いたままにしてください）${wait}`
+      : `退勤中（位置は共有していません）${wait}`);
+  }
+
+  // ===== 出勤・退勤 =====
+  $('clockBtn').onclick = () => {
+    if (!me) return openWho();
+    if (on && !confirm('退勤しますか？位置の共有が止まります')) return;
+    busy(true, on ? '退勤中…' : '出勤中…');
+    run('mClock', me, !on, pos).then(d => { busy(false); show(d); lastSent = Date.now(); })
+      .catch(e => { busy(false); alert(e.message); });
+  };
+
+  // 出勤中は画面が暗くならないようにする（画面ロックで位置の送信が止まるため。対応していないスマホでは何もしない）
+  async function keepAwake() {
+    try {
+      if (on && !wake && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+      if (!on && wake) { wake.release(); wake = null; }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); tick(); } });
+
+  // ===== 名前 =====
+  let names = [], kyushu = [], groups = [];
+  function openWho() {
+    const btns = list => list.map(n => `<button>${esc(n)}</button>`).join('');
+    const head = t => '<div class="sub" style="margin:12px 0 6px">' + esc(t) + '</div>';
+    $('names').innerHTML = (AGENT && !names.length ? '<div class="sub">名前がまだありません。Lien Fort に名前を足してもらってください</div>' : btns(names)) +
+      (kyushu.length ? head('九州支社') + btns(kyushu) : '') + groups.map(g => head(g.label) + btns(g.names)).join('');
+    $('names').querySelectorAll('button').forEach(b => b.onclick = () => setMe(b.textContent));
+    $('nameIn').value = '';
+    $('who').classList.add('open');
+  }
+  function setMe(n) {
+    n = n.trim();
+    if (!n) return;
+    if (on && n !== me) return alert('名前を変えるときは、先に退勤してください');
+    me = n; store.set(AGENT ? 'mNameAg' : 'mName', n);
+    $('whoBtn').textContent = n;
+    $('who').classList.remove('open');
+    tick();
+  }
+  $('whoBtn').onclick = openWho;
+  $('whoOk').onclick = () => { if (AGENT) $('who').classList.remove('open'); else setMe($('nameIn').value); };
+  $('whoCancel').onclick = () => $('who').classList.remove('open');
+
+  // ===== ピンを立てる・訪問を記録 =====
+  $('pinBtn').onclick = () => {
+    if (!me) return openWho();
+    if (!pos) return alert('位置を取得しています。少し待ってからもう一度押してください');
+    if (pos.acc > 100 && !confirm(`位置のずれが大きいです（約${Math.round(pos.acc)}m）。このまま立てますか？`)) return;
+    openForm({ mode: 'pin', lat: pos.lat, lng: pos.lng });
+  };
+  // 置くピンの種類（スマホが覚える。最初は「新規」）
+  let placeTag = store.get('mPlaceTag', '新規');
+  function drawTags() {
+    if (!statuses.includes(placeTag)) placeTag = statuses[0];
+    $('tags').innerHTML = statuses.map(tagBtn).join('');
+    [...$('tags').children].forEach(b => {
+      b.classList.toggle('on', b.textContent === placeTag);
+      b.onclick = () => { placeTag = b.textContent; store.set('mPlaceTag', placeTag); drawTags(); setState(); };
+    });
+  }
+  drawTags();
+  $('placeBtn').onclick = () => {
+    if (!me) return openWho();
+    placing = !placing;
+    $('placeBtn').textContent = placing ? '置き終わる' : '地図に置く';
+    $('placeBtn').classList.toggle('on', placing);
+    follow = false;
+    setState();
+  };
+  map.on('click', e => {
+    if (!placing) return;
+    const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+    queue.push({ fn: 'mAddPin', arg: { id, lat: e.latlng.lat, lng: e.latlng.lng, name: me, status: placeTag, memo: '', photo: '', ts, plan: true } });
+    if (filt.hide.includes(placeTag)) { filt.hide = filt.hide.filter(x => x !== placeTag); store.set('mFilter', filt); } // 置いた種類が消えないように
+    saveQueue(); drawPins(); setState(); flush();
+  });
+
+  $('visitBtn').onclick = () => openForm({ mode: 'visit', pin: form.pin });
+
+  // 置き間違いのピンを消す。未送信ならスマホから消すだけ
+  $('delBtn').onclick = () => {
+    const p = form.pin;
+    if (!confirm('このピンを消しますか？')) return;
+    $('view').classList.remove('open');
+    const i = queue.findIndex(q => q.fn === 'mAddPin' && q.arg.id === p.id);
+    if (i >= 0 && !(sending && i === 0)) { queue.splice(i, 1); saveQueue(); drawPins(); setState(); return; }
+    queue.push({ fn: 'mDeletePin', arg: { id: p.id, lat: p.lat, lng: p.lng } });
+    saveQueue(); pins = pins.filter(x => x.id !== p.id); drawPins(); setState(); flush();
+  };
+
+  function openForm(f) {
+    form = Object.assign({ status: '', photo: '' }, f);
+    $('formTitle').textContent = f.mode === 'pin' ? 'ピンを立てる' : '訪問を記録';
+    $('formSub').textContent = f.mode === 'pin' ? `今いる場所（誤差 約${Math.round(pos.acc)}m）に ${me} で立てます` : (f.pin.address || '') + `　訪問者：${me}`;
+    $('stats').innerHTML = statuses.map(tagBtn).join('');
+    [...$('stats').children].forEach(b => b.onclick = () => {
+      form.status = b.textContent;
+      [...$('stats').children].forEach(x => x.classList.toggle('on', x === b));
+    });
+    $('memo').value = ''; $('photoIn').value = ''; $('photoPrev').innerHTML = '';
+    $('cust').value = f.mode === 'visit' ? f.pin.cust || '' : ''; // 訪問のときは前に入れた名前から
+    $('kana').value = f.mode === 'visit' ? f.pin.kana || '' : '';
+    $('view').classList.remove('open');
+    $('form').classList.add('open');
+  }
+  $('formCancel').onclick = () => $('form').classList.remove('open');
+
+  // 写真は長い辺 1280px の JPEG に縮めてから送る
+  $('photoIn').onchange = () => {
+    const file = $('photoIn').files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', .7);
+      form.photo = url.split(',')[1];
+      $('photoPrev').innerHTML = `<img src="${url}">`;
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  };
+
+  $('formOk').onclick = () => {
+    if (!form.status) return alert('ステータスを選んでください');
+    const ts = Date.now(), id = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+    const base = { name: me, status: form.status, memo: $('memo').value.trim(), photo: form.photo, ts,
+      cust: $('cust').value.trim(), kana: $('kana').value.trim() };
+    if (form.photo) { base.photoKey = id; photoStore('put', id, form.photo); } // 写真は大きな保存場所にもためておく
+    if (form.mode === 'pin') queue.push({ fn: 'mAddPin', arg: Object.assign({ id, lat: form.lat, lng: form.lng }, base) });
+    else queue.push({ fn: 'mAddVisit', arg: Object.assign({ id, pinId: form.pin.id, lat: form.pin.lat, lng: form.pin.lng }, base) });
+    saveQueue();
+    $('form').classList.remove('open');
+    drawPins(); setState();
+    flush();
+  };
+
+  // 送れなかった記録はスマホに残して、電波が戻ったら送る（20秒ごとに確認）
+  let sending = false;
+  function flush() {
+    if (sending || !queue.length) return;
+    sending = true;
+    const q = queue[0];
+    // スマホを閉じたあとの送り直しでは、写真は大きな保存場所から出して送る
+    (q.arg.photoKey && !q.arg.photo ? photoStore('get', q.arg.photoKey).then(ph => Object.assign({}, q.arg, { photo: ph || '' })) : Promise.resolve(q.arg))
+      .then(a => run(q.fn, a, me, ver)).then(d => {
+      queue.shift(); saveQueue(); sending = false;
+      if (q.arg.photoKey) photoStore('delete', q.arg.photoKey);
+      show(d); // 送った記録の分を地図に出す
+      if (queue.length) flush(); else drawPins();
+    }).catch(e => {
+      sending = false; setState();
+      // 送っても入らない記録（ピンが消された等）だけ捨てる。混雑・電波・そのほかの失敗はスマホに残して送り直す
+      if (/見つかりません|消せません|本人だけ|名前を選んで/.test(e.message)) {
+        if (q.arg.photoKey) photoStore('delete', q.arg.photoKey);
+        queue.shift(); saveQueue(); drawPins(); alert('保存できませんでした：' + e.message);
+      }
+    });
+  }
+  setInterval(flush, 20000);
+  window.addEventListener('online', flush);
+  // 未送信の記録はスマホの小さな保存場所（localStorage）に、写真は大きな保存場所（IndexedDB）にためる
+  function saveQueue() {
+    const noPhoto = q => Object.assign({}, q, { arg: Object.assign({}, q.arg, { photo: '' }) });
+    if (!store.set('mQueue', queue.map(q => q.arg.photoKey ? noPhoto(q) : q))) store.set('mQueue', queue.map(noPhoto));
+  }
+  let photoDb = null;
+  function photoStore(op, key, val) {
+    photoDb = photoDb || new Promise((ok, ng) => {
+      const r = indexedDB.open('eigyoMap', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('photos');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ng(r.error);
+    });
+    return photoDb.then(db => new Promise((ok, ng) => {
+      const t = db.transaction('photos', op === 'get' ? 'readonly' : 'readwrite'), st = t.objectStore('photos');
+      const r = op === 'put' ? st.put(val, key) : op === 'get' ? st.get(key) : st.delete(key);
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ng(r.error);
+    })).catch(() => null);
+  }
+
+  // ===== ピンの訪問履歴 =====
+  function openView(p) {
+    form = { pin: p };
+    $('viewTitle').textContent = (p.cust ? p.cust + '　' : '') + (p.address || (p.cust ? '' : 'ピン'));
+    const visited = Number(p.count) > 0 || queue.some(q => q.fn === 'mAddVisit' && q.arg.pinId === p.id);
+    $('viewSub').textContent = `立てた人：${p.by}　${p.created ? fmt(p.created) : '（未送信）'}　` + (Number(p.count) > 0 ? `訪問 ${p.count}回` : 'まだ訪問していません');
+    $('delBtn').style.display = visited || p.by !== me ? 'none' : ''; // 消せるのは立てた本人の、訪問記録がないピンだけ
+    $('viewCoord').textContent = `座標：${(+p.lat).toFixed(6)}, ${(+p.lng).toFixed(6)}`;
+    const mine = queue.filter(q => (q.fn === 'mAddPin' && q.arg.id === p.id && !q.arg.plan) || (q.fn === 'mAddVisit' && q.arg.pinId === p.id))
+      .map(q => ({ by: q.arg.name, at: q.arg.ts, status: q.arg.status, memo: q.arg.memo, wait: true })).reverse();
+    const draw = list => {
+      $('visits').innerHTML = list.map(v => `<div class="visit"><div class="top"><span><b>${esc(v.by)}</b>　${fmt(v.at)}${v.wait ? '（未送信）' : ''}</span>
+        <span class="badge" style="background:${COLORS[v.status] || '#9ca3af'}${LIGHT.includes(v.status) ? ';color:#18202e;box-shadow:0 0 0 1px #cfd6e2 inset' : ''}">${esc(v.status)}</span></div>
+        ${v.memo ? `<p>${esc(v.memo)}</p>` : ''}
+        ${v.photo ? `<a href="https://drive.google.com/thumbnail?id=${v.photo}&sz=w2000" target="_blank"><img src="https://drive.google.com/thumbnail?id=${v.photo}&sz=w800"></a>` : ''}</div>`).join('');
+    };
+    draw(mine);
+    $('view').classList.add('open');
+    if (!p.wait) run('mVisits', p.id).then(v => draw(mine.concat(v))).catch(e => { $('visits').innerHTML += `<div class="sub">履歴を読めません：${esc(e.message)}</div>`; });
+  }
+  $('viewClose').onclick = () => $('view').classList.remove('open');
+
+  // ===== 住所の共有・Googleマップ =====
+  const gmapUrl = p => `https://www.google.com/maps/search/?api=1&query=${(+p.lat).toFixed(6)},${(+p.lng).toFixed(6)}`;
+  const shareText = p => (p.address ? p.address + '\n' : '') + gmapUrl(p);
+  $('shareBtn').onclick = () => {
+    const p = form.pin;
+    if (navigator.share) navigator.share({ title: p.address || '営業マップのピン', text: shareText(p) }).catch(() => {});
+    else copyText(shareText(p));
+  };
+  $('copyBtn').onclick = () => copyText(shareText(form.pin));
+  $('gmapBtn').onclick = () => window.open(gmapUrl(form.pin), '_blank');
+  function copyText(t) {
+    const done = () => alert('コピーしました\n' + t);
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, () => prompt('コピーしてください', t));
+    else prompt('コピーしてください', t);
+  }
+
+  // ===== 場所の検索 =====
+  // 座標・Googleマップのリンクはその場で読み取る。地名・住所は国土地理院（API 経由）、店名や施設は OpenStreetMap（スマホから直接）
+  let spot = null;
+  const foundLayer = L.layerGroup().addTo(map);
+  // 市・町の境目。次に境目のある地名を選ぶと入れ替え、✕で消す
+  const areaLayer = L.layerGroup().addTo(map);
+  function showArea(x) {
+    areaLayer.clearLayers();
+    const g = { type: 'Feature', geometry: x.geo };
+    L.geoJSON(g, { interactive: false, style: { color: '#fff', weight: 6, opacity: .95, fill: false } }).addTo(areaLayer);
+    const line = L.geoJSON(g, { interactive: false, style: { color: '#e53935', weight: 4, dashArray: '7 7', fill: false } }).addTo(areaLayer);
+    map.fitBounds(line.getBounds(), { padding: [30, 30] });
+    $('areaName').textContent = x.name; $('areaChip').classList.add('on');
+  }
+  $('areaX').onclick = () => { areaLayer.clearLayers(); $('areaChip').classList.remove('on'); };
+  const NOTE = 'Googleマップのリンクや「33.59, 130.40」のような座標も使えます';
+  $('findBtn').onclick = () => { $('find').classList.add('open'); $('findIn').focus(); };
+  $('findClose').onclick = () => {
+    $('find').classList.remove('open');
+    if (spot) { spot.remove(); spot = null; }
+    foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
+    $('findList').innerHTML = ''; $('findNote').textContent = NOTE;
+  };
+  const kmText = km => km < 1 ? Math.round(km * 1000) + 'm' : km.toFixed(1) + 'km';
+  const foundPopup = x => `<b>${esc(x.name)}</b><br>${esc(x.sub || '')}<br><a href="${gmapUrl(x)}" target="_blank">Googleマップで開く</a>`;
+  // 見つかった場所を全部地図に出して、一覧はたたむ（「一覧を見る」で開く）
+  function showFound(list) {
+    foundLayer.clearLayers();
+    list.forEach(x => {
+      x.marker = L.marker([x.lat, x.lng], { zIndexOffset: 1500, icon: L.divIcon({ className: '', iconSize: [0, 0],
+        html: `<div class="found"><b>${esc(x.name)}</b><i></i></div>` }) }).bindPopup(foundPopup(x)).addTo(foundLayer);
+    });
+    if (!list.length) return;
+    follow = false;
+    map.fitBounds(L.latLngBounds(list.map(x => [x.lat, x.lng])), { padding: [40, 40], maxZoom: 16 });
+    $('findList').classList.add('hide');
+    $('findNote').innerHTML = `${list.length}件を地図に表示中<button id="listBtn">一覧を見る</button>`;
+    $('listBtn').onclick = () => {
+      const hide = $('findList').classList.toggle('hide');
+      $('listBtn').textContent = hide ? '一覧を見る' : '一覧を閉じる';
+    };
+  }
+  $('findGo').onclick = find;
+  $('findIn').onkeydown = e => { if (e.key === 'Enter') find(); };
+
+  function coordsIn(t) {
+    const m = t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/[?&](?:q|query|ll|center)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)
+      || t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/^\s*(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{2,3}\.\d+)\s*$/);
+    return m ? { lat: +m[1], lng: +m[2] } : null;
+  }
+
+  async function find() {
+    const q = $('findIn').value.trim();
+    if (!q) return;
+    $('findIn').blur();
+    const c = coordsIn(q);
+    if (c) return goSpot(c.lat, c.lng, q);
+    $('findList').innerHTML = ''; foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
+    const cw = convWanted(q);
+    if (cw) return showConv(cw);
+    $('findNote').textContent = '探しています…';
+    const ctr = map.getCenter(), b = map.getBounds();
+    // まず今の地図のまわり（約30km）で探し、なければ全国から（コンビニなど同じ名前の店が近い順に出るように）
+    const nom = bounded => fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=jp&accept-language=ja&limit=15&polygon_geojson=1&polygon_threshold=0.0002&q=' + encodeURIComponent(q) +
+      `&viewbox=${b.getWest() - 0.3},${b.getNorth() + 0.3},${b.getEast() + 0.3},${b.getSouth() - 0.3}&bounded=${bounded}`).then(r => r.json());
+    const osm = nom(1).then(a => a.length ? a : nom(0))
+      .then(a => a.map(x => ({ name: x.name || x.display_name.split(',')[0], sub: x.display_name.split(', ').slice(1).reverse().filter(y => y !== '日本' && !/^\d{3}-?\d{4}$/.test(y)).join(''), lat: +x.lat, lng: +x.lon, geo: /Polygon/.test((x.geojson || {}).type) ? x.geojson : null })))
+      .catch(() => []);
+    const gsi = run('mSearch', q).catch(() => ({ results: [] }));
+    const [a, g] = await Promise.all([osm, gsi]);
+    if (g.lat) return goSpot(g.lat, g.lng, q); // Googleマップの短いリンク
+    const seen = new Set(), list = a.concat(g.results).filter(x => {
+      const k = x.lat.toFixed(4) + ',' + x.lng.toFixed(4);
+      return seen.has(k) ? false : seen.add(k);
+    }).map(x => Object.assign(x, { km: map.distance(ctr, [x.lat, x.lng]) / 1000 })).sort((x, y) => (x.pin ? 0 : 1) - (y.pin ? 0 : 1) || x.km - y.km).slice(0, 15); // 営業マップのピン（〇〇邸）を先に
+    $('findNote').textContent = list.length ? '' : '見つかりませんでした。地名や住所を足してみてください';
+    $('findList').innerHTML = list.map(x => `<button>${esc(x.name)}<small>${esc(x.sub || '')}　${kmText(x.km)}</small></button>`).join('');
+    [...$('findList').children].forEach((el, i) => el.onclick = () => {
+      $('findList').classList.add('hide'); $('listBtn').textContent = '一覧を見る';
+      if (list[i].geo) showArea(list[i]); else map.setView([list[i].lat, list[i].lng], 17);
+      list[i].marker.openPopup();
+    });
+    showFound(list);
+    // 探した言葉と同じ名前の市・町があれば、すぐ境目で囲む（例：「生駒市」）
+    const same = list.find(x => x.geo && x.name === q.replace(/\s/g, ''));
+    if (same) showArea(same);
+  }
+
+  // ===== コンビニ（conv.json：全国のコンビニの位置。アプリ/conv_build.py で作る） =====
+  // 「コンビニ」や店の名前で探すと、今見ている範囲の店を全部出す。地図を動かすと出し直す
+  const CONV_COLORS = { 'セブン-イレブン': '#f26f21', 'ローソン': '#0068b7', 'ファミリーマート': '#00a73c', 'ミニストップ': '#e6b800',
+    'デイリーヤマザキ': '#e60012', 'セイコーマート': '#f39800', 'NewDays': '#7a2b8e', 'その他': '#8a93a3' };
+  const CONV_WORDS = [['セブン-イレブン', /セブン|7-?11|7-?eleven|seven/i], ['ローソン', /ローソン|lawson/i], ['ファミリーマート', /ファミ|family/i],
+    ['ミニストップ', /ミニストップ|ministop/i], ['デイリーヤマザキ', /デイリー|ヤマザキ/i], ['セイコーマート', /セイコ|seico/i], ['NewDays', /newdays|ニューデイズ/i]];
+  const CONV_MAX = 400; // これより多い範囲は「拡大してください」
+  let conv = null, convShow = null; // convShow：出す店（null＝出していない、[]＝コンビニ全部）
+  const convLayer = L.layerGroup().addTo(map);
+  function convWanted(q) {
+    const hit = CONV_WORDS.filter(([, re]) => re.test(q)).map(([b]) => b);
+    return hit.length ? hit : /コンビニ|convenience/i.test(q) ? [] : null;
+  }
+  async function showConv(want) {
+    convShow = want;
+    if (!conv) {
+      $('findNote').textContent = 'コンビニを読み込んでいます…';
+      try { conv = await fetch('conv.json').then(r => r.json()); } catch (e) { $('findNote').textContent = 'コンビニを読み込めません（電波を確認してください）'; return; }
+    }
+    drawConv();
+  }
+  function drawConv() {
+    convLayer.clearLayers();
+    if (!convShow || !conv) return;
+    const b = map.getBounds(), s = b.getSouth() * 1e5, n = b.getNorth() * 1e5, w = b.getWest() * 1e5, e = b.getEast() * 1e5;
+    const ids = convShow.length ? convShow.map(x => conv.brands.indexOf(x)) : null, label = convShow.length ? convShow.join('・') : 'コンビニ';
+    const hit = conv.stores.filter(x => x[0] >= s && x[0] <= n && x[1] >= w && x[1] <= e && (!ids || ids.includes(x[2])));
+    if (hit.length > CONV_MAX) { $('findNote').textContent = `この範囲の${label}は${hit.length}件あります。地図を拡大すると表示します`; return; }
+    hit.forEach(x => {
+      const br = conv.brands[x[2]], lat = x[0] / 1e5, lng = x[1] / 1e5;
+      L.marker([lat, lng], { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+        html: `<div class="cv" style="background:${CONV_COLORS[br] || '#8a93a3'}"></div>` }) })
+        .bindPopup(`<b>${esc(br)}</b><br><a href="${gmapUrl({ lat, lng })}" target="_blank">Googleマップで開く</a>`).addTo(convLayer);
+    });
+    const kinds = [...new Set(hit.map(x => conv.brands[x[2]]))];
+    $('findNote').innerHTML = `この範囲の${esc(label)} ${hit.length}件（地図を動かすと出し直します）<br>` +
+      kinds.map(k => `<span style="color:${CONV_COLORS[k]}">■</span>${esc(k)}`).join('　') + '<br>店の位置 © OpenStreetMap contributors';
+  }
+  map.on('moveend', () => { if (convShow) drawConv(); });
+
+  // 座標・Googleマップのリンクの場所（1か所）
+  function goSpot(lat, lng, name) {
+    follow = false;
+    if (spot) spot.remove();
+    foundLayer.clearLayers(); convShow = null; convLayer.clearLayers();
+    spot = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="spot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 2000 })
+      .bindPopup(`<b>${esc(name)}</b><br><a href="${gmapUrl({ lat, lng })}" target="_blank">Googleマップで開く</a>`).addTo(map);
+    map.setView([lat, lng], 17);
+    $('find').classList.remove('open');
+    $('findList').innerHTML = '';
+    $('findNote').textContent = NOTE;
+  }
+
+  // ===== 共通 =====
+  function busy(b, text) { if (text) $('overlayText').textContent = text; document.body.classList.toggle('busy', b); }
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+  function fmt(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; }
+  function ago(t) { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? '今' : m < 60 ? m + '分前' : fmt(t); }
+
+  layout();
+  $('whoBtn').textContent = me || '名前';
+  run('mConfig').then(c => {
+    names = c.names; kyushu = c.kyushu || []; groups = c.groups || []; statuses = c.statuses; drawTags(); drawPins();
+    if (AGENT && me && !names.includes(me)) { me = ''; $('whoBtn').textContent = '名前'; }
+    if (pos) loadArea(); else setTimeout(loadArea, 4000); // 位置が分かれば移動したときに読む
+    if (!me) openWho();
+    tick();
+  }).catch(e => setState('エラー：' + e.message));
+  watch();
+</script>
+</body>
+</html>

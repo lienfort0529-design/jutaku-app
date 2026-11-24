@@ -633,6 +633,27 @@
     google.script.run.withSuccessHandler(r => { I = r; if (view === 'input') render(); })
       .withFailureHandler(e => { $('msg').textContent = 'エラー: ' + e.message; }).inputData(store('jAdmin') || '');
   }
+  // ===== 課題提出（1日1回。21時に未提出の人へLINE WORKSで通知が行く） =====
+  function kadaiBox(me) {
+    const b = document.createElement('button');
+    b.style.cssText = 'display:block;width:100%;margin:10px 0;padding:14px;font-size:17px;font-weight:600;border:0;border-radius:12px;';
+    const show = t => {
+      b.dataset.done = t ? '1' : ''; b.disabled = false;
+      b.textContent = t ? '✅ 今日の課題は提出済み（' + t + '）' : '📝 今日の課題を提出';
+      b.style.background = t ? '#e3f1e5' : '#2c3e50'; b.style.color = t ? '#1e6b2f' : '#fff';
+    };
+    show(''); b.disabled = true; b.textContent = '課題の提出状況を確認中…';
+    b.onclick = () => {
+      if (b.dataset.done || b.disabled) return;
+      if (!confirm(me + 'さん：今日の課題を提出済みにしますか？')) return;
+      b.disabled = true; b.textContent = '送信中…';
+      google.script.run.withSuccessHandler(show)
+        .withFailureHandler(e => { b.disabled = false; b.textContent = 'エラー：' + e.message + '（もう一度押す）'; })
+        .submitKadai(me);
+    };
+    $('view').appendChild(b);
+    google.script.run.withSuccessHandler(show).withFailureHandler(() => show('')).getKadai(me);
+  }
   function renderInput() {
     if (!I) { $('view').innerHTML = '<div class="note">読み込み中…</div>'; return; }
     const seg = document.createElement('div');
@@ -655,6 +676,7 @@
     $('view').appendChild(r);
     const me = sel.value, j = B.names.indexOf(me);
     if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">名前を選ぶと、その人の目標・手入力の欄が出ます（数式で自動の欄は出ません）</div>'); return; }
+    kadaiBox(me);
     const c = card(me + ' さん（' + B.month + '）'), f = document.createElement('div');
     f.className = 'fi';
     B.rows.forEach(x => {
@@ -876,7 +898,7 @@
     $('mon').classList.add('hide');
     renderAdmin = () => { $('adminBox').innerHTML = ''; };
     if (MODE === 'settings') {
-      t.innerHTML = '<button data-v="input">入力</button><button data-v="member">メンバー</button>';
+      t.innerHTML = '<button data-v="input">入力</button><button data-v="member">メンバー</button><a class="tablink" href="agents.html">代理店 ›</a>';
       view = store('setView') === 'member' ? 'member' : 'input';
       t.querySelectorAll('button').forEach(b => b.onclick = () => { view = b.dataset.v; store('setView', view); if (view === 'input' ? I : MB) render(); else modeLoad(); });
     } else { view = MODE; t.classList.add('hide'); }
