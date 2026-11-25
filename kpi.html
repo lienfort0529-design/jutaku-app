@@ -451,13 +451,17 @@
     return new Date(y, m, 0).getDate() - d + 1; // 今日を入れた今月の残りの日数
   }
   // stages：上から 目標の段階（goal・actual）→ 次の段階（rate＝次÷前 の逆、actual）…
-  // 個人の残りの稼働日数：フル＝週5日、スポット＝週2日、インターン＝先月の出勤日数の割合（先月の日数に対して）
+  // 個人の残りの稼働日数：フル＝週5日＋月・火の祝日、スポット＝土日＋平日の祝日（数える）、インターン＝先月の出勤日数の割合（先月の日数に対して）
   function workDays(group, lastDays) {
     const left = daysLeft(), [y, m] = D.today.split('-').map(Number), lastMonth = new Date(y, m - 1, 0).getDate();
-    if (/スポット/.test(group)) return { d: left * 2 / 7, t: 'スポット：週2日' };
+    // 今日から月末までで test(曜日, 祝日か) に合う日の数。祝日は D.holidays（Google の日本の祝日）
+    const H = new Set(D.holidays || []), [, , d0] = D.today.split('-').map(Number), last = new Date(y, m, 0).getDate();
+    const count = test => { let n = 0; for (let i = d0; i <= last; i++) { const w = new Date(y, m - 1, i).getDay(); if (test(w, H.has(y + '-' + String(m).padStart(2, '0') + '-' + String(i).padStart(2, '0')))) n++; } return n; };
+    if (/スポット/.test(group)) { const n = count((w, h) => w === 0 || w === 6 || h); return { d: n, t: 'スポット：土日と平日の祝日 ' + n + '日' }; }
     if (/インターン/.test(group)) return lastDays > 0 ? { d: left * lastDays / lastMonth, t: 'インターン：' + D.base.month + '月に' + lastDays + '日出勤' }
       : { d: left * 5 / 7, t: 'インターン：' + D.base.month + '月の出勤日数がないので週5日' };
-    return { d: left * 5 / 7, t: (group ? group + '：' : '') + '週5日' };
+    const mt = count((w, h) => h && (w === 1 || w === 2));
+    return { d: left * 5 / 7 + mt, t: (group ? group + '：' : '') + '週5日' + (mt ? '＋月火の祝日 ' + mt + '日' : '') };
   }
   function gyakuCard(id, title, stages, work) {
     const c = card(title), box = document.createElement('div'), E = EDIT[id] = EDIT[id] || {}, left = work ? Math.max(1, Math.round(work.d)) : daysLeft();
@@ -508,7 +512,7 @@
       st('商談', '件', sum(D.closers, 's'), L.close, team.close), st('アポ', '件', sum(D.players, 'a'), L.meet, team.meet),
       st('対面', '件', sum(D.players, 't'), L.apo, team.apo), st('叩き', '軒', sum(D.players, 'k'), L.face, team.face)]));
     $('view').appendChild(g);
-    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝チームは今日を入れた残り' + daysLeft() + '日、一人ひとりは残りの稼働日数（フル週5日・スポット週2日・インターンは先月の出勤日数から）で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝チームは今日を入れた残り' + daysLeft() + '日、一人ひとりは残りの稼働日数（フル週5日＋月火の祝日・スポット土日＋平日の祝日・インターンは先月の出勤日数から）で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
     const me = nameSelect('kpiMe', render);
     if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">自分の名前を選ぶと、自分の率での逆算も出ます</div>'); return; }
     const m = document.createElement('div');
