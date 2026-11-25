@@ -451,8 +451,16 @@
     return new Date(y, m, 0).getDate() - d + 1; // 今日を入れた今月の残りの日数
   }
   // stages：上から 目標の段階（goal・actual）→ 次の段階（rate＝次÷前 の逆、actual）…
-  function gyakuCard(id, title, stages) {
-    const c = card(title), box = document.createElement('div'), E = EDIT[id] = EDIT[id] || {}, left = daysLeft();
+  // 個人の残りの稼働日数：フル＝週5日、スポット＝週2日、インターン＝先月の出勤日数の割合（先月の日数に対して）
+  function workDays(group, lastDays) {
+    const left = daysLeft(), [y, m] = D.today.split('-').map(Number), lastMonth = new Date(y, m - 1, 0).getDate();
+    if (/スポット/.test(group)) return { d: left * 2 / 7, t: 'スポット：週2日' };
+    if (/インターン/.test(group)) return lastDays > 0 ? { d: left * lastDays / lastMonth, t: 'インターン：' + D.base.month + '月に' + lastDays + '日出勤' }
+      : { d: left * 5 / 7, t: 'インターン：' + D.base.month + '月の出勤日数がないので週5日' };
+    return { d: left * 5 / 7, t: (group ? group + '：' : '') + '週5日' };
+  }
+  function gyakuCard(id, title, stages, work) {
+    const c = card(title), box = document.createElement('div'), E = EDIT[id] = EDIT[id] || {}, left = work ? Math.max(1, Math.round(work.d)) : daysLeft();
     const perDay = v => v == null ? '-' : v / left >= 10 ? Math.ceil(v / left) : Math.ceil(v / left * 10) / 10;
     const draw = () => {
       const goal = E.goal != null ? E.goal : stages[0].goal;
@@ -462,7 +470,7 @@
         if (i) { const r = E['r' + i] != null ? E['r' + i] / 100 : st.rate; remain = remain == null || !r ? null : remain / r; }
         h += '<tr><td>' + st.label + '</td><td>' + (st.actual == null ? '-' : st.actual + st.unit) + '</td><td><b>' + (remain == null ? '-' : Math.ceil(remain) + st.unit) + '</b></td><td>' + (remain == null ? '-' : perDay(remain) + st.unit) + '</td></tr>';
       });
-      box.innerHTML = h + '</table>';
+      box.innerHTML = h + '</table>' + (work ? '<div class="note" style="margin:4px 0 0;text-align:left">1日あたり＝残りの稼働 約' + left + '日で割った数（' + esc(work.t) + '）</div>' : '');
     };
     c.appendChild(box);
     const f = document.createElement('div');
@@ -500,7 +508,7 @@
       st('商談', '件', sum(D.closers, 's'), L.close, team.close), st('アポ', '件', sum(D.players, 'a'), L.meet, team.meet),
       st('対面', '件', sum(D.players, 't'), L.apo, team.apo), st('叩き', '軒', sum(D.players, 'k'), L.face, team.face)]));
     $('view').appendChild(g);
-    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝今日を入れた残り' + daysLeft() + '日で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
+    $('view').insertAdjacentHTML('beforeend', '<div class="note">「あと」＝目標までの残りの件数を、' + B.month + '月の率でさかのぼった数。1日あたり＝チームは今日を入れた残り' + daysLeft() + '日、一人ひとりは残りの稼働日数（フル週5日・スポット週2日・インターンは先月の出勤日数から）で割った数。率や目標は下の欄で変えて試せます（保存はされません）</div>');
     const me = nameSelect('kpiMe', render);
     if (!me) { $('view').insertAdjacentHTML('beforeend', '<div class="note">自分の名前を選ぶと、自分の率での逆算も出ます</div>'); return; }
     const m = document.createElement('div');
@@ -510,7 +518,7 @@
     if (c) {
       const r = own(pc && rate(pc.c, pc.s), team.close), s0 = st('契約', '件', c.count); s0.goal = c.countGoal;
       m.appendChild(gyakuCard('c:' + me, me + '（クローザー）', [s0, st('商談', '件', c.s, L.close, r[0], r[1]), st('アポ', '件', null, L.meet, team.meet, true),
-        st('対面', '件', null, L.apo, team.apo, true), st('叩き', '軒', null, L.face, team.face, true)]));
+        st('対面', '件', null, L.apo, team.apo, true), st('叩き', '軒', null, L.face, team.face, true)], workDays(c.group)));
     }
     const p = D.players.find(x => x.name === me), a = D.apos.find(x => x.name === me), pp = bp.find(x => x.name === me);
     if (p || a) {
@@ -520,7 +528,8 @@
       const rc = own(pa && rate(pa.c, pa.s), team.close), rm = own(pa && rate(pa.s, pa.a), team.meet);
       const s0 = st('成約', '件', a ? num(a.c) : null); s0.goal = a ? (num(a.cg) != null ? num(a.cg) : num(a.cg2)) : null;
       m.appendChild(gyakuCard('p:' + me, me + '（叩き）', [s0, st('有効商談', '件', a ? num(a.s) : null, L.close, rc[0], rc[1]),
-        st('アポ', '件', p ? p.a : a.a, L.meet, rm[0], rm[1]), st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])]));
+        st('アポ', '件', p ? p.a : a.a, L.meet, rm[0], rm[1]), st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])],
+        workDays((a && a.group) || (p && p.group) || '', pa ? (num(pa.wd) || 0) + (num(pa.we) || 0) || num(pa.wa) || 0 : 0)));
     }
     if (!m.children.length) m.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの目標・数字はまだありません</div>');
     $('view').appendChild(m);
