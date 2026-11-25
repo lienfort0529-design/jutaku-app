@@ -509,13 +509,18 @@
     const c = D.closers.find(x => x.name === me), pc = bc.find(x => x.name === me);
     if (c) {
       const r = own(pc && rate(pc.c, pc.s), team.close), s0 = st('契約', '件', c.count); s0.goal = c.countGoal;
-      m.appendChild(gyakuCard('c:' + me, me + '（クローザー）', [s0, st('商談', '件', c.s, L.close, r[0], r[1]), st('アポ', '件', null, L.meet, team.meet, true)]));
+      m.appendChild(gyakuCard('c:' + me, me + '（クローザー）', [s0, st('商談', '件', c.s, L.close, r[0], r[1]), st('アポ', '件', null, L.meet, team.meet, true),
+        st('対面', '件', null, L.apo, team.apo, true), st('叩き', '軒', null, L.face, team.face, true)]));
     }
     const p = D.players.find(x => x.name === me), a = D.apos.find(x => x.name === me), pp = bp.find(x => x.name === me);
     if (p || a) {
       const rf = own(pp && rate(pp.t, pp.k), team.face), ra = own(pp && rate(pp.a, pp.t), team.apo);
-      const s0 = st('アポ', '件', p ? p.a : a.a); s0.goal = a ? a.goal : null;
-      m.appendChild(gyakuCard('p:' + me, me + '（叩き）', [s0, st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])]));
+      // 成約から：成約率・商談化率は自分のアポの先月（アポインター表の 成約÷有効商談・有効商談÷アポ）、なければチーム
+      const pa = (B.apos || []).find(x => x.name === me), num = v => v == null || v === '' ? null : Number(v);
+      const rc = own(pa && rate(pa.c, pa.s), team.close), rm = own(pa && rate(pa.s, pa.a), team.meet);
+      const s0 = st('成約', '件', a ? num(a.c) : null); s0.goal = a ? (num(a.cg) != null ? num(a.cg) : num(a.cg2)) : null;
+      m.appendChild(gyakuCard('p:' + me, me + '（叩き）', [s0, st('有効商談', '件', a ? num(a.s) : null, L.close, rc[0], rc[1]),
+        st('アポ', '件', p ? p.a : a.a, L.meet, rm[0], rm[1]), st('対面', '件', p ? p.t : null, L.apo, ra[0], ra[1]), st('叩き', '軒', p ? p.k : null, L.face, rf[0], rf[1])]));
     }
     if (!m.children.length) m.insertAdjacentHTML('beforeend', '<div class="note">' + esc(me) + ' さんの目標・数字はまだありません</div>');
     $('view').appendChild(m);
